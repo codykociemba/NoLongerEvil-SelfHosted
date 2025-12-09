@@ -1,5 +1,7 @@
 """Tests for device state service."""
 
+from datetime import datetime
+
 import pytest
 
 from nolongerevil.lib.types import DeviceObject
@@ -18,6 +20,7 @@ class TestDeviceStateService:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
 
         await state_service.upsert_object(obj)
@@ -36,6 +39,7 @@ class TestDeviceStateService:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0, "mode": "heat"},
+            updated_at=datetime.utcnow(),
         )
         await state_service.upsert_object(obj)
 
@@ -61,6 +65,7 @@ class TestDeviceStateService:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
         obj2 = DeviceObject(
             serial="TEST87654321",
@@ -68,6 +73,7 @@ class TestDeviceStateService:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 22.0},
+            updated_at=datetime.utcnow(),
         )
 
         await state_service.upsert_object(obj1)
@@ -88,6 +94,7 @@ class TestDeviceStateService:
             object_revision=5,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
         await state_service.upsert_object(obj)
 
@@ -121,6 +128,7 @@ class TestDeviceStateService:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
         await state_service.upsert_object(obj)
 

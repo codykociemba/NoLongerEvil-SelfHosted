@@ -226,7 +226,7 @@ async def run_server() -> None:
     # Wait for shutdown signal
     shutdown_event = asyncio.Event()
 
-    def signal_handler():
+    def signal_handler() -> None:
         logger.info("Shutdown signal received")
         shutdown_event.set()
 

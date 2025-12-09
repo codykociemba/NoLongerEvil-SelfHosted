@@ -133,7 +133,7 @@ class SubscriptionManager:
             for session_id, sub in device_subs.items():
                 try:
                     # Check if response is still writable
-                    if sub.response.task.done():
+                    if sub.response.task is not None and sub.response.task.done():
                         sessions_to_remove.append(session_id)
                         continue
 
@@ -289,7 +289,9 @@ class SubscriptionManager:
     def has_active_subscription(self, serial: str) -> bool:
         """Check if device has any active subscription."""
         has_future = serial in self._subscriptions and len(self._subscriptions[serial]) > 0
-        has_chunked = serial in self._chunked_subscriptions and len(self._chunked_subscriptions[serial]) > 0
+        has_chunked = (
+            serial in self._chunked_subscriptions and len(self._chunked_subscriptions[serial]) > 0
+        )
         return has_future or has_chunked
 
     def get_stats(self) -> dict[str, Any]:
@@ -297,7 +299,9 @@ class SubscriptionManager:
         return {
             "total_subscriptions": self.get_total_subscription_count(),
             "future_subscriptions": sum(len(subs) for subs in self._subscriptions.values()),
-            "chunked_subscriptions": sum(len(subs) for subs in self._chunked_subscriptions.values()),
+            "chunked_subscriptions": sum(
+                len(subs) for subs in self._chunked_subscriptions.values()
+            ),
             "devices_with_subscriptions": len(
                 set(self._subscriptions.keys()) | set(self._chunked_subscriptions.keys())
             ),

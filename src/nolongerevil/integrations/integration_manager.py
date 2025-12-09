@@ -41,7 +41,7 @@ class IntegrationManager:
         self._storage = storage
         self._state_service = state_service
         self._integrations: dict[str, BaseIntegration] = {}  # user_id:type -> integration
-        self._poll_task: asyncio.Task | None = None
+        self._poll_task: asyncio.Task[None] | None = None
         self._running = False
 
     async def start(self) -> None:

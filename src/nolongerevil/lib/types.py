@@ -75,6 +75,7 @@ class DeviceSharePermission(Enum):
 
     READ = "read"
     WRITE = "write"
+    CONTROL = "control"
     ADMIN = "admin"
 
 
@@ -164,3 +165,6 @@ class TemperatureSafetyBounds:
     max_heat: float = 32.0
     min_cool: float = 9.0
     max_cool: float = 32.0
+    # Generic min/max used by temperature_safety module
+    min_celsius: float = 7.222  # 45F default
+    max_celsius: float = 35.0  # 95F default

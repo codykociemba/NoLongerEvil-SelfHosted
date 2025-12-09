@@ -28,9 +28,7 @@ def get_logger(name: str) -> logging.Logger:
         handler.setLevel(level)
 
         # Create formatter
-        formatter = logging.Formatter(
-            "[%(levelname)s] %(name)s: %(message)s"
-        )
+        formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
         handler.setFormatter(formatter)
 
         logger.addHandler(handler)

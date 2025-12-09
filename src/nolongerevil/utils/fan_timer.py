@@ -36,10 +36,7 @@ def is_explicitly_turning_off_fan(new_values: dict[str, Any]) -> bool:
         return True
 
     # Check fan_control_state = false
-    if "fan_control_state" in new_values and new_values["fan_control_state"] is False:
-        return True
-
-    return False
+    return "fan_control_state" in new_values and new_values["fan_control_state"] is False
 
 
 def is_fan_timer_active(state: FanTimerState) -> bool:

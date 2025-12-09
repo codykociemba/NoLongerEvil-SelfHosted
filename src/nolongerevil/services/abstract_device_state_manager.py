@@ -55,6 +55,18 @@ class AbstractDeviceStateManager(ABC):
         """Delete a device object."""
         pass
 
+    @abstractmethod
+    async def delete_device(self, serial: str) -> int:
+        """Delete all objects for a device.
+
+        Args:
+            serial: Device serial
+
+        Returns:
+            Number of objects deleted
+        """
+        pass
+
     # Entry key operations
     @abstractmethod
     async def create_entry_key(self, entry_key: EntryKey) -> None:
@@ -308,9 +320,7 @@ class AbstractDeviceStateManager(ABC):
         pass
 
     @abstractmethod
-    async def validate_api_key(
-        self, key: str
-    ) -> dict[str, Any] | None:
+    async def validate_api_key(self, key: str) -> dict[str, Any] | None:
         """Validate API key for authentication.
 
         Args:
@@ -355,9 +365,7 @@ class AbstractDeviceStateManager(ABC):
         pass
 
     @abstractmethod
-    async def get_shared_with_me(
-        self, user_id: str
-    ) -> list[dict[str, Any]]:
+    async def get_shared_with_me(self, user_id: str) -> list[dict[str, Any]]:
         """Get devices shared with a user.
 
         Args:

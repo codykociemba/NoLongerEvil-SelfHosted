@@ -15,7 +15,6 @@ from nolongerevil.integrations.base_integration import BaseIntegration
 from nolongerevil.integrations.mqtt.helpers import (
     battery_voltage_to_percent,
     derive_hvac_action,
-    format_temperature,
     get_fan_mode,
     get_preset_mode,
     ha_mode_to_nest,
@@ -60,7 +59,7 @@ class MqttIntegration(BaseIntegration):
         self._state_service = state_service
         self._client: aiomqtt.Client | None = None
         self._active_client: aiomqtt.Client | None = None
-        self._listener_task: asyncio.Task | None = None
+        self._listener_task: asyncio.Task[None] | None = None
         self._connected = False
 
         # Parse configuration with TypeScript-matching defaults
@@ -206,12 +205,11 @@ class MqttIntegration(BaseIntegration):
             logger.warning(f"Device {serial} not fully initialized")
             return
 
-        device_values = device_obj.value
-        shared_values = shared_obj.value
-
         if command == "mode":
             nest_mode = ha_mode_to_nest(payload)
-            await self._update_shared_value(serial, shared_obj, "target_temperature_type", nest_mode)
+            await self._update_shared_value(
+                serial, shared_obj, "target_temperature_type", nest_mode
+            )
 
         elif command == "target_temperature":
             temp = float(payload)
@@ -228,31 +226,49 @@ class MqttIntegration(BaseIntegration):
         elif command == "fan_mode":
             if payload.lower() == "on":
                 timeout_timestamp = int(time.time()) + 3600
-                await self._update_device_fields(serial, device_obj, {
-                    "fan_control_state": True,
-                    "fan_timer_active": True,
-                    "fan_timer_timeout": timeout_timestamp,
-                })
+                await self._update_device_fields(
+                    serial,
+                    device_obj,
+                    {
+                        "fan_control_state": True,
+                        "fan_timer_active": True,
+                        "fan_timer_timeout": timeout_timestamp,
+                    },
+                )
             else:
-                await self._update_device_fields(serial, device_obj, {
-                    "fan_control_state": False,
-                    "fan_timer_active": False,
-                    "fan_timer_timeout": 0,
-                })
+                await self._update_device_fields(
+                    serial,
+                    device_obj,
+                    {
+                        "fan_control_state": False,
+                        "fan_timer_active": False,
+                        "fan_timer_timeout": 0,
+                    },
+                )
 
         elif command == "preset":
             if payload.lower() == "away":
-                await self._update_device_fields(serial, device_obj, {
-                    "auto_away": 2,
-                    "away": True,
-                })
+                await self._update_device_fields(
+                    serial,
+                    device_obj,
+                    {
+                        "auto_away": 2,
+                        "away": True,
+                    },
+                )
             elif payload.lower() == "home":
-                await self._update_device_fields(serial, device_obj, {
-                    "auto_away": 0,
-                    "away": False,
-                })
+                await self._update_device_fields(
+                    serial,
+                    device_obj,
+                    {
+                        "auto_away": 0,
+                        "away": False,
+                    },
+                )
             elif payload.lower() == "eco":
-                await self._update_device_value(serial, device_obj, "eco", {"mode": "manual-eco", "leaf": True})
+                await self._update_device_value(
+                    serial, device_obj, "eco", {"mode": "manual-eco", "leaf": True}
+                )
 
         else:
             logger.warning(f"Unknown HA command: {command}")
@@ -276,14 +292,15 @@ class MqttIntegration(BaseIntegration):
         try:
             value = json.loads(payload)
         except json.JSONDecodeError:
-            try:
+            import contextlib
+
+            with contextlib.suppress(ValueError):
                 value = float(payload)
-            except ValueError:
-                pass
 
         logger.info(f"Raw Command: {serial}/{object_type}.{field} = {value}")
 
         from datetime import datetime
+
         from nolongerevil.lib.types import DeviceObject
 
         object_key = f"{object_type}.{serial}"
@@ -308,9 +325,12 @@ class MqttIntegration(BaseIntegration):
         await self._state_service.upsert_object(obj)
         logger.info(f"Applied raw command to {serial}: {{{field}: {value}}}")
 
-    async def _update_shared_value(self, serial: str, current_obj: Any, field: str, value: Any) -> None:
+    async def _update_shared_value(
+        self, serial: str, current_obj: Any, field: str, value: Any
+    ) -> None:
         """Update a field in the shared object."""
         from datetime import datetime
+
         from nolongerevil.lib.types import DeviceObject
 
         object_key = f"shared.{serial}"
@@ -329,9 +349,12 @@ class MqttIntegration(BaseIntegration):
         await self._state_service.upsert_object(obj)
         logger.info(f"Applied MQTT command to {serial}: {{{field}: {value}}}")
 
-    async def _update_device_value(self, serial: str, current_obj: Any, field: str, value: Any) -> None:
+    async def _update_device_value(
+        self, serial: str, current_obj: Any, field: str, value: Any
+    ) -> None:
         """Update a field in the device object."""
         from datetime import datetime
+
         from nolongerevil.lib.types import DeviceObject
 
         object_key = f"device.{serial}"
@@ -350,9 +373,12 @@ class MqttIntegration(BaseIntegration):
         await self._state_service.upsert_object(obj)
         logger.info(f"Applied MQTT command to {serial}: {{{field}: {value}}}")
 
-    async def _update_device_fields(self, serial: str, current_obj: Any, fields: dict[str, Any]) -> None:
+    async def _update_device_fields(
+        self, serial: str, current_obj: Any, fields: dict[str, Any]
+    ) -> None:
         """Update multiple fields in the device object atomically."""
         from datetime import datetime
+
         from nolongerevil.lib.types import DeviceObject
 
         object_key = f"device.{serial}"
@@ -384,7 +410,9 @@ class MqttIntegration(BaseIntegration):
         try:
             # Publish raw state
             if self._publish_raw:
-                await self._publish_raw_state(self._active_client, serial, object_type, change.new_value)
+                await self._publish_raw_state(
+                    self._active_client, serial, object_type, change.new_value
+                )
 
             # Publish HA state
             if self._ha_discovery:
@@ -431,7 +459,9 @@ class MqttIntegration(BaseIntegration):
         shared_values = shared_obj.value or {}
 
         # Current temperature (from shared or device)
-        current_temp = shared_values.get("current_temperature") or device_values.get("current_temperature")
+        current_temp = shared_values.get("current_temperature") or device_values.get(
+            "current_temperature"
+        )
         if current_temp is not None:
             await client.publish(
                 f"{prefix}/{serial}/ha/current_temperature",

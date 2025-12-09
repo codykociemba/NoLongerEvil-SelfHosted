@@ -226,7 +226,7 @@ class SQLite3Service(AbstractDeviceStateManager):
                 object_revision=row["object_revision"],
                 object_timestamp=row["object_timestamp"],
                 value=json.loads(row["value"]),
-                updated_at=self._timestamp_to_datetime(row["updatedAt"]),
+                updated_at=self._timestamp_to_datetime(row["updatedAt"]) or datetime.now(),
             )
 
     async def get_objects_by_serial(self, serial: str) -> list[DeviceObject]:
@@ -240,7 +240,7 @@ class SQLite3Service(AbstractDeviceStateManager):
                     object_revision=row["object_revision"],
                     object_timestamp=row["object_timestamp"],
                     value=json.loads(row["value"]),
-                    updated_at=self._timestamp_to_datetime(row["updatedAt"]),
+                    updated_at=self._timestamp_to_datetime(row["updatedAt"]) or datetime.now(),
                 )
                 for row in rows
             ]
@@ -256,7 +256,7 @@ class SQLite3Service(AbstractDeviceStateManager):
                     object_revision=row["object_revision"],
                     object_timestamp=row["object_timestamp"],
                     value=json.loads(row["value"]),
-                    updated_at=self._timestamp_to_datetime(row["updatedAt"]),
+                    updated_at=self._timestamp_to_datetime(row["updatedAt"]) or datetime.now(),
                 )
                 for row in rows
             ]
@@ -567,9 +567,7 @@ class SQLite3Service(AbstractDeviceStateManager):
 
     async def get_user_api_keys(self, user_id: str) -> list[APIKey]:
         """Get all API keys for a user."""
-        async with self.db.execute(
-            "SELECT * FROM apiKeys WHERE userId = ?", (user_id,)
-        ) as cursor:
+        async with self.db.execute("SELECT * FROM apiKeys WHERE userId = ?", (user_id,)) as cursor:
             rows = await cursor.fetchall()
             result = []
             for row in rows:
@@ -731,8 +729,8 @@ class SQLite3Service(AbstractDeviceStateManager):
                     type=row["type"],
                     enabled=bool(row["enabled"]),
                     config=json.loads(row["config"]),
-                    created_at=self._timestamp_to_datetime(row["createdAt"]),
-                    updated_at=self._timestamp_to_datetime(row["updatedAt"]),
+                    created_at=self._timestamp_to_datetime(row["createdAt"]) or datetime.now(),
+                    updated_at=self._timestamp_to_datetime(row["updatedAt"]) or datetime.now(),
                 )
                 for row in rows
             ]
@@ -747,8 +745,8 @@ class SQLite3Service(AbstractDeviceStateManager):
                     type=row["type"],
                     enabled=bool(row["enabled"]),
                     config=json.loads(row["config"]),
-                    created_at=self._timestamp_to_datetime(row["createdAt"]),
-                    updated_at=self._timestamp_to_datetime(row["updatedAt"]),
+                    created_at=self._timestamp_to_datetime(row["createdAt"]) or datetime.now(),
+                    updated_at=self._timestamp_to_datetime(row["updatedAt"]) or datetime.now(),
                 )
                 for row in rows
             ]
@@ -853,7 +851,6 @@ class SQLite3Service(AbstractDeviceStateManager):
             ),
         )
         await self.db.commit()
-
 
     # Additional methods from TypeScript AbstractDeviceStateManager
 
@@ -964,7 +961,7 @@ class SQLite3Service(AbstractDeviceStateManager):
                             object_revision=(user_state.object_revision or 0) + 1,
                             object_timestamp=now_ms,
                             value=updated_value,
-                            updated_at=self._timestamp_to_datetime(now_ms),
+                            updated_at=self._timestamp_to_datetime(now_ms) or datetime.now(),
                         )
                     )
         except Exception as e:
@@ -1017,7 +1014,7 @@ class SQLite3Service(AbstractDeviceStateManager):
                             object_revision=(user_state.object_revision or 0) + 1,
                             object_timestamp=now_ms,
                             value=updated_value,
-                            updated_at=self._timestamp_to_datetime(now_ms),
+                            updated_at=self._timestamp_to_datetime(now_ms) or datetime.now(),
                         )
                     )
         except Exception as e:
@@ -1050,7 +1047,7 @@ class SQLite3Service(AbstractDeviceStateManager):
                         object_revision=1,
                         object_timestamp=now_ms,
                         value=dialog_value,
-                        updated_at=self._timestamp_to_datetime(now_ms),
+                        updated_at=self._timestamp_to_datetime(now_ms) or datetime.now(),
                     )
                 )
 
@@ -1065,9 +1062,7 @@ class SQLite3Service(AbstractDeviceStateManager):
                     "profile_image_url": "",
                     "short_name": "",
                     "structures": [structure_id],
-                    "structure_memberships": [
-                        {"structure": structure_id, "roles": ["owner"]}
-                    ],
+                    "structure_memberships": [{"structure": structure_id, "roles": ["owner"]}],
                 }
                 await self.upsert_object(
                     DeviceObject(
@@ -1076,7 +1071,7 @@ class SQLite3Service(AbstractDeviceStateManager):
                         object_revision=1,
                         object_timestamp=now_ms,
                         value=default_user_state,
-                        updated_at=self._timestamp_to_datetime(now_ms),
+                        updated_at=self._timestamp_to_datetime(now_ms) or datetime.now(),
                     )
                 )
         except Exception as e:
@@ -1167,7 +1162,10 @@ class SQLite3Service(AbstractDeviceStateManager):
                 if share.serial == serial:
                     has_share_perms = all(
                         scope == "read"
-                        or (scope in ("write", "control") and share.permissions == DeviceSharePermission.CONTROL)
+                        or (
+                            scope in ("write", "control")
+                            and share.permissions == DeviceSharePermission.CONTROL
+                        )
                         for scope in required_scopes
                     )
                     has_key_scope = all(scope in scopes for scope in required_scopes)
@@ -1186,10 +1184,7 @@ class SQLite3Service(AbstractDeviceStateManager):
     async def get_shared_with_me(self, user_id: str) -> list[dict[str, Any]]:
         """Get devices shared with a user."""
         shares = await self.get_user_shared_devices(user_id)
-        return [
-            {"serial": s.serial, "permissions": [s.permissions.value]}
-            for s in shares
-        ]
+        return [{"serial": s.serial, "permissions": [s.permissions.value]} for s in shares]
 
 
 def hash_api_key(key: str) -> str:

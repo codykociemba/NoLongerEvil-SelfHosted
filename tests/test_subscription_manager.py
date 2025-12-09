@@ -1,6 +1,7 @@
 """Tests for subscription manager."""
 
 import asyncio
+from datetime import datetime
 
 import pytest
 
@@ -49,6 +50,7 @@ class TestSubscriptionManager:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
 
         notified = await subscription_manager.notify_subscribers(
@@ -77,6 +79,7 @@ class TestSubscriptionManager:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
         shared_obj = DeviceObject(
             serial="TEST12345678",
@@ -84,6 +87,7 @@ class TestSubscriptionManager:
             object_revision=1,
             object_timestamp=1234567890,
             value={"name": "Test"},
+            updated_at=datetime.utcnow(),
         )
 
         await subscription_manager.notify_subscribers(
@@ -111,6 +115,7 @@ class TestSubscriptionManager:
             object_revision=5,  # Same revision
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
 
         notified = await subscription_manager.notify_subscribers(
@@ -157,5 +162,5 @@ class TestSubscriptionManager:
 
         assert stats["total_subscriptions"] == 3
         assert stats["devices_with_subscriptions"] == 2
-        assert stats["per_device"]["TEST12345678"] == 2
-        assert stats["per_device"]["TEST87654321"] == 1
+        assert stats["future_subscriptions"] == 3  # All subscriptions are future-based
+        assert stats["chunked_subscriptions"] == 0

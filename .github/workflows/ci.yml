@@ -115,7 +115,7 @@ jobs:
           pip install bandit safety
 
       - name: Run Bandit (security linting)
-        run: bandit -r src/nolongerevil -ll
+        run: bandit -r src/nolongerevil -lll
 
       - name: Check dependencies for vulnerabilities
         run: |

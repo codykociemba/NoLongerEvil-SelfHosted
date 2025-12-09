@@ -8,7 +8,6 @@ from typing import Any
 
 from aiohttp import web
 
-from nolongerevil.config import settings
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.serial_parser import extract_serial_from_request, extract_weave_device_id
 from nolongerevil.lib.types import DeviceObject
@@ -60,10 +59,7 @@ async def handle_transport_get(request: web.Request) -> web.Response:
             # Extract everything after /device/
             device_part = path.split("/device/")[-1]
             # Remove "device." prefix if present
-            if device_part.startswith("device."):
-                serial = device_part[7:]  # Remove "device." prefix
-            else:
-                serial = device_part
+            serial = device_part[7:] if device_part.startswith("device.") else device_part
 
     # Also try extracting from request headers/body
     if not serial:
@@ -92,7 +88,7 @@ async def handle_transport_get(request: web.Request) -> web.Response:
     return web.json_response({"objects": response_objects})
 
 
-async def handle_transport_subscribe(request: web.Request) -> web.Response:
+async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse:
     """Handle POST /nest/transport - subscribe to device updates.
 
     This is the main Nest protocol endpoint. It handles:
@@ -114,9 +110,13 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
     objects = body.get("objects", [])
     weave_device_id = extract_weave_device_id(request)
 
-    logger.debug(f"Subscribe from {serial}: chunked={chunked}, {len(objects)} objects, session={session}")
+    logger.debug(
+        f"Subscribe from {serial}: chunked={chunked}, {len(objects)} objects, session={session}"
+    )
     for obj in objects:  # Log all objects
-        logger.debug(f"  Object: key={obj.get('object_key')} rev={obj.get('object_revision')} ts={obj.get('object_timestamp')}")
+        logger.debug(
+            f"  Object: key={obj.get('object_key')} rev={obj.get('object_revision')} ts={obj.get('object_timestamp')}"
+        )
 
     if not isinstance(objects, list):
         return web.Response(text="Invalid request: objects array required", status=400)
@@ -130,7 +130,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
 
     response_objects: list[DeviceObject] = []
     # Track which client objects we processed (those with valid object_key)
-    processed_client_objects: list[dict] = []
+    processed_client_objects: list[dict[str, Any]] = []
 
     # Process each object from the device
     for client_obj in objects:
@@ -177,7 +177,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
                     # Sync user state when away or postal_code changes
                     if "away" in value or "postal_code" in value:
                         await state_service.storage.update_user_away_status(device_owner.user_id)
-                        await state_service.storage.sync_user_weather_from_device(device_owner.user_id)
+                        await state_service.storage.sync_user_weather_from_device(
+                            device_owner.user_id
+                        )
 
             # Check if values actually changed
             values_equal = server_obj and _values_equal(server_obj.value, merged_value)
@@ -218,7 +220,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
 
     # Find outdated objects (server has newer data than client)
     outdated_objects: list[DeviceObject] = []
-    objects_to_merge: list[tuple[dict, DeviceObject]] = []
+    objects_to_merge: list[tuple[dict[str, Any], DeviceObject]] = []
 
     for i, client_obj in enumerate(processed_client_objects):
         response_obj = response_objects[i]
@@ -247,7 +249,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
     for client_obj, server_obj in objects_to_merge:
         object_key = client_obj.get("object_key")
         client_value = client_obj.get("value")
-        if client_value:
+        if client_value and object_key:
             merged_value = {**server_obj.value, **client_value}
             await state_service.upsert_object(
                 DeviceObject(
@@ -267,7 +269,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
             f"Responding immediately with {len(outdated_objects)} outdated object(s) for {serial}"
         )
         for obj in formatted_objs[:3]:
-            logger.debug(f"  Response: key={obj.get('object_key')} rev={obj.get('object_revision')} ts={obj.get('object_timestamp')}")
+            logger.debug(
+                f"  Response: key={obj.get('object_key')} rev={obj.get('object_revision')} ts={obj.get('object_timestamp')}"
+            )
         response_data = {"objects": formatted_objs}
         return web.json_response(
             response_data,
@@ -357,7 +361,7 @@ async def handle_transport_put(request: web.Request) -> web.Response:
     await device_availability.mark_device_seen(serial)
 
     weave_device_id = extract_weave_device_id(request)
-    response_objects: list[dict] = []
+    response_objects: list[dict[str, Any]] = []
     device_object_changed = False
 
     for client_obj in objects:
@@ -432,7 +436,7 @@ async def handle_transport_put(request: web.Request) -> web.Response:
     return web.json_response({"objects": response_objects})
 
 
-def _values_equal(a: dict | None, b: dict | None) -> bool:
+def _values_equal(a: dict[str, Any] | None, b: dict[str, Any] | None) -> bool:
     """Check if two value dictionaries are equal."""
     if a is None and b is None:
         return True

@@ -26,6 +26,7 @@ class TestSQLite3ServiceDeviceObjects:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
 
         await sqlite_service.upsert_object(obj)
@@ -52,6 +53,7 @@ class TestSQLite3ServiceDeviceObjects:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
         obj2 = DeviceObject(
             serial=serial,
@@ -59,6 +61,7 @@ class TestSQLite3ServiceDeviceObjects:
             object_revision=1,
             object_timestamp=1234567890,
             value={"name": "Living Room"},
+            updated_at=datetime.utcnow(),
         )
 
         await sqlite_service.upsert_object(obj1)
@@ -80,6 +83,7 @@ class TestSQLite3ServiceDeviceObjects:
             object_revision=1,
             object_timestamp=1234567890,
             value={"target_temperature": 21.0},
+            updated_at=datetime.utcnow(),
         )
 
         await sqlite_service.upsert_object(obj)

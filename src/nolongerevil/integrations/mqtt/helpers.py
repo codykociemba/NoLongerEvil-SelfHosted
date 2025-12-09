@@ -3,7 +3,6 @@
 import time
 from typing import Any
 
-
 # where_id to human-readable room name mapping
 # Nest uses UUID-based where_id values
 WHERE_ID_NAMES: dict[str, str] = {
@@ -61,9 +60,8 @@ def get_device_name(
 
     # Try where_id (room name) - with lookup
     where_id = device_values.get("where_id")
-    if where_id and isinstance(where_id, str):
-        if where_id in WHERE_ID_NAMES:
-            return WHERE_ID_NAMES[where_id]
+    if where_id and isinstance(where_id, str) and where_id in WHERE_ID_NAMES:
+        return WHERE_ID_NAMES[where_id]
 
     # Fallback to serial
     return serial
@@ -122,9 +120,7 @@ def ha_mode_to_nest(ha_mode: str | None) -> str:
     return mode_map.get(ha_mode, "off")
 
 
-def derive_hvac_action(
-    device_values: dict[str, Any], shared_values: dict[str, Any]
-) -> str:
+def derive_hvac_action(device_values: dict[str, Any], shared_values: dict[str, Any]) -> str:
     """Derive current HVAC action from device state.
 
     IMPORTANT: HVAC state fields (hvac_heater_state, hvac_ac_state, etc.)
