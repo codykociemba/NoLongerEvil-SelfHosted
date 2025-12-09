@@ -86,15 +86,38 @@ class Settings(BaseSettings):
         description="Path to SQLite3 database file",
     )
 
-    # MQTT configuration
-    mqtt_broker_url: str | None = Field(
+    # MQTT configuration (from environment variables set by run.sh)
+    mqtt_host: str | None = Field(
         default=None,
-        description="MQTT broker URL (e.g., mqtt://localhost:1883)",
+        description="MQTT broker hostname",
+    )
+    mqtt_port: int = Field(
+        default=1883,
+        description="MQTT broker port",
+    )
+    mqtt_user: str | None = Field(
+        default=None,
+        description="MQTT username",
+    )
+    mqtt_password: str | None = Field(
+        default=None,
+        description="MQTT password",
     )
     mqtt_topic_prefix: str = Field(
         default="nolongerevil",
         description="Prefix for MQTT topics",
     )
+    mqtt_discovery_prefix: str = Field(
+        default="homeassistant",
+        description="Home Assistant MQTT discovery prefix",
+    )
+
+    @property
+    def mqtt_broker_url(self) -> str | None:
+        """Get MQTT broker URL from host/port."""
+        if not self.mqtt_host:
+            return None
+        return f"mqtt://{self.mqtt_host}:{self.mqtt_port}"
 
     @property
     def weather_cache_ttl_seconds(self) -> float:

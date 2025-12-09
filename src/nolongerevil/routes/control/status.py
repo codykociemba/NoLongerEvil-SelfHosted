@@ -4,6 +4,7 @@ from typing import Any
 
 from aiohttp import web
 
+from nolongerevil.integrations.mqtt.helpers import get_device_name
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
@@ -34,11 +35,12 @@ def format_device_status(
     shared_values = shared_obj.value if shared_obj else {}
 
     # Extract key fields
+    last_seen = device_availability.get_last_seen(serial)
     status = {
         "serial": serial,
         "is_available": device_availability.is_available(serial),
-        "last_seen": device_availability.get_last_seen(serial),
-        "name": shared_values.get("name") or device_values.get("where_id") or serial,
+        "last_seen": last_seen.isoformat() if last_seen else None,
+        "name": get_device_name(device_values, shared_values, serial),
         "current_temperature": device_values.get("current_temperature"),
         "target_temperature": device_values.get("target_temperature"),
         "target_temperature_high": device_values.get("target_temperature_high"),

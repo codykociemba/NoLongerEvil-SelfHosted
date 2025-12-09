@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NoLongerEvil - Device Management</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7/css/materialdesignicons.min.css">
+  <!-- CSS will be injected inline to avoid ingress path issues -->
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #f5f5f5;
+    }
+    h1 { color: #333; }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .status { color: #4CAF50; font-weight: bold; }
+    .form-input {
+      padding: 10px;
+      font-size: 16px;
+      width: 150px;
+      text-transform: uppercase;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .btn {
+      padding: 10px 20px;
+      font-size: 14px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    .btn-primary { background: #4CAF50; color: white; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn:hover { opacity: 0.9; }
+    .device-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .device-item:last-child { border-bottom: none; }
+    #registerResult { margin-top: 15px; }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>🌡️ NoLongerEvil Device Management</h1>
+
+  <div class="card">
+    <h2>Welcome!</h2>
+    <p class="status">✓ MQTT Integration Active</p>
+    <p>Your NoLongerEvil server is running and ready to manage Nest thermostats.</p>
+  </div>
+
+  <div class="card">
+    <h2>Quick Start</h2>
+    <ol>
+      <li>On your Nest thermostat, go to Settings &gt; Reset &gt; Network</li>
+      <li>Connect to WiFi and select "Pro Setup"</li>
+      <li>The thermostat will display a 7-character pairing code</li>
+      <li>Enter the code below to register the device</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Register Device</h2>
+    <p>Enter the 7-character pairing code from your Nest thermostat:</p>
+    <form id="registerForm">
+      <input
+        type="text"
+        id="entryCode"
+        placeholder="123ABCD"
+        maxlength="7"
+        class="form-input"
+        required
+      />
+      <button type="submit" class="btn btn-primary">Register Device</button>
+    </form>
+    <div id="registerResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Devices</h2>
+    <div id="deviceList">
+      <p><em>Loading devices...</em></p>
+    </div>
+    <button onclick="loadDevices()" class="btn btn-primary" style="margin-top: 10px;">
+      <i class="mdi mdi-refresh"></i> Refresh Devices
+    </button>
+  </div>
+
+  <script>
+    // Get base path from data attribute (injected by server for ingress support)
+    const BASE_PATH = document.body.dataset.ingressPath || '';
+
+    // Load devices on page load
+    loadDevices();
+
+    // Handle registration form
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = document.getElementById('entryCode').value.toUpperCase().trim();
+      const resultDiv = document.getElementById('registerResult');
+
+      if (code.length !== 7) {
+        resultDiv.innerHTML = '<p class="error">Entry code must be 7 characters</p>';
+        return;
+      }
+
+      resultDiv.innerHTML = '<p>Registering device...</p>';
+
+      try {
+        const response = await fetch(BASE_PATH + '/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: code, userId: 'homeassistant' })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          resultDiv.innerHTML = '<p class="success">' + result.message + '</p>';
+          document.getElementById('entryCode').value = '';
+          setTimeout(loadDevices, 1000);
+        } else {
+          resultDiv.innerHTML = '<p class="error">' + result.message + '</p>';
+        }
+      } catch (error) {
+        resultDiv.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
+      }
+    });
+
+    async function loadDevices() {
+      const deviceList = document.getElementById('deviceList');
+      try {
+        const response = await fetch(BASE_PATH + '/api/devices');
+        const data = await response.json();
+        const devices = data.devices || [];
+
+        if (devices.length === 0) {
+          deviceList.innerHTML = '<p><em>No devices registered yet</em></p>';
+        } else {
+          deviceList.innerHTML = devices.map(d => {
+            return '<div class="device-item">' +
+              '<div>' +
+                '<strong>' + (d.name || d.serial) + '</strong><br>' +
+                '<small style="color:#666;font-family:monospace;">' + d.serial + '</small>' +
+              '</div>' +
+              '<div>' +
+                '<button onclick="deleteDevice(\'' + d.serial + '\')" class="btn btn-danger" title="Delete">' +
+                  '<i class="mdi mdi-delete"></i>' +
+                '</button>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+        }
+      } catch (error) {
+        deviceList.innerHTML = '<p class="error">Error loading devices: ' + error.message + '</p>';
+      }
+    }
+
+    async function deleteDevice(serial) {
+      if (!confirm('Delete device ' + serial + '?')) return;
+
+      try {
+        const response = await fetch(BASE_PATH + '/api/device', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serial: serial })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          loadDevices();
+        } else {
+          alert('Failed to delete: ' + (result.error || 'Unknown error'));
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,9 +1,11 @@
 """Main application entry point with dual-port servers."""
 
 import asyncio
+import json
 import signal
 import ssl
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from pathlib import Path
 
 from aiohttp import web
@@ -11,6 +13,7 @@ from aiohttp import web
 from nolongerevil.config import settings
 from nolongerevil.integrations.integration_manager import IntegrationManager
 from nolongerevil.lib.logger import get_logger
+from nolongerevil.lib.types import UserInfo
 from nolongerevil.middleware.debug_logger import create_debug_logger_middleware
 from nolongerevil.middleware.url_normalizer import create_url_normalizer_middleware
 from nolongerevil.routes.control import setup_control_routes
@@ -22,6 +25,87 @@ from nolongerevil.services.subscription_manager import SubscriptionManager
 from nolongerevil.services.weather_service import WeatherService
 
 logger = get_logger(__name__)
+
+
+async def ensure_homeassistant_user(storage: SQLite3Service) -> None:
+    """Ensure the homeassistant user exists in the database.
+
+    Args:
+        storage: SQLite3 storage service
+    """
+    user_id = "homeassistant"
+    existing_user = await storage.get_user(user_id)
+
+    if existing_user:
+        logger.debug(f"User '{user_id}' already exists")
+        return
+
+    user = UserInfo(
+        clerk_id=user_id,
+        email="homeassistant@local",
+        created_at=datetime.now(),
+    )
+    await storage.create_user(user)
+    logger.info(f"Created user '{user_id}'")
+
+
+async def initialize_mqtt_config(storage: SQLite3Service) -> None:
+    """Initialize MQTT configuration from environment variables.
+
+    Args:
+        storage: SQLite3 storage service
+    """
+    if not settings.mqtt_host:
+        logger.warning("MQTT not configured - no MQTT_HOST environment variable")
+        return
+
+    broker_url = settings.mqtt_broker_url
+    logger.info(f"Initializing MQTT configuration: {broker_url}")
+
+    mqtt_config = {
+        "brokerUrl": broker_url,
+        "clientId": "nolongerevil-homeassistant",
+        "topicPrefix": settings.mqtt_topic_prefix,
+        "discoveryPrefix": settings.mqtt_discovery_prefix,
+        "publishRaw": True,
+        "homeAssistantDiscovery": True,
+    }
+
+    # Add credentials if provided
+    if settings.mqtt_user:
+        mqtt_config["username"] = settings.mqtt_user
+    if settings.mqtt_password:
+        mqtt_config["password"] = settings.mqtt_password
+
+    user_id = "homeassistant"
+    config_json = json.dumps(mqtt_config)
+    now_ms = int(datetime.now().timestamp() * 1000)
+
+    # Check if integration exists
+    async with storage.db.execute(
+        "SELECT userId FROM integrations WHERE userId = ? AND type = ?",
+        (user_id, "mqtt"),
+    ) as cursor:
+        existing = await cursor.fetchone()
+
+    if existing:
+        # Update existing
+        await storage.db.execute(
+            "UPDATE integrations SET enabled = ?, config = ?, updatedAt = ? WHERE userId = ? AND type = ?",
+            (1, config_json, now_ms, user_id, "mqtt"),
+        )
+        await storage.db.commit()
+        logger.info("Updated MQTT integration config")
+    else:
+        # Insert new
+        await storage.db.execute(
+            "INSERT INTO integrations (userId, type, enabled, config, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, "mqtt", 1, config_json, now_ms, now_ms),
+        )
+        await storage.db.commit()
+        logger.info("Created MQTT integration config")
+
+    logger.info(f"MQTT configured: broker={broker_url}, prefix={settings.mqtt_topic_prefix}")
 
 
 def create_proxy_app(
@@ -164,6 +248,10 @@ async def run_server() -> None:
     # Initialize storage with SQLModel
     logger.info("Initializing SQLModel storage backend")
     storage = SQLModelService()
+
+    # Initialize user and MQTT configuration
+    await ensure_homeassistant_user(storage)
+    await initialize_mqtt_config(storage)
 
     # Initialize services
     state_service = DeviceStateService(storage)
