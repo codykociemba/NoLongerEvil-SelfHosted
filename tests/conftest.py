@@ -1,7 +1,9 @@
 """Pytest fixtures and configuration."""
 
 import asyncio
+import gc
 import tempfile
+import threading
 from pathlib import Path
 from typing import AsyncGenerator, Generator
 
@@ -76,3 +78,26 @@ def device_availability(
 ) -> DeviceAvailability:
     """Create a DeviceAvailability service."""
     return DeviceAvailability(subscription_manager)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Clean up any lingering threads after test session.
+
+    This is a workaround for pytest-asyncio hanging on Python 3.14 due to
+    deprecated asyncio.get_event_loop_policy() calls leaving orphaned threads.
+    """
+    import os
+    import sys
+
+    # Force garbage collection to clean up any lingering async resources
+    gc.collect()
+
+    # Give threads a moment to clean up
+    for thread in threading.enumerate():
+        if thread is not threading.main_thread() and thread.daemon:
+            thread.join(timeout=0.1)
+
+    # On Python 3.14+, pytest-asyncio can leave orphaned threads due to
+    # deprecated event loop policy APIs. Force exit to avoid hanging.
+    if sys.version_info >= (3, 14):
+        os._exit(exitstatus)
