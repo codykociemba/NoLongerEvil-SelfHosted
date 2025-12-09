@@ -71,6 +71,7 @@ def create_control_app(
     state_service: DeviceStateService,
     subscription_manager: SubscriptionManager,
     device_availability: DeviceAvailability,
+    storage: SQLite3Service | None = None,
 ) -> web.Application:
     """Create the control API application.
 
@@ -78,11 +79,13 @@ def create_control_app(
     - Device commands
     - Status queries
     - Device listing
+    - Device registration (when storage is provided)
 
     Args:
         state_service: Device state service
         subscription_manager: Subscription manager
         device_availability: Device availability service
+        storage: SQLite3 storage service (optional, for registration routes)
 
     Returns:
         aiohttp Application
@@ -117,6 +120,7 @@ def create_control_app(
         state_service,
         subscription_manager,
         device_availability,
+        storage,
     )
 
     # Health check endpoint
@@ -192,6 +196,7 @@ async def run_server() -> None:
         state_service,
         subscription_manager,
         device_availability,
+        storage,
     )
 
     # Get SSL context
