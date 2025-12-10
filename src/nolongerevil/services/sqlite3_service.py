@@ -489,11 +489,8 @@ class SQLite3Service(AbstractDeviceStateManager):
         """Cache weather data."""
         await self.db.execute(
             """
-            INSERT INTO weather (postalCode, country, fetchedAt, data)
+            INSERT OR REPLACE INTO weather (postalCode, country, fetchedAt, data)
             VALUES (?, ?, ?, ?)
-            ON CONFLICT(postalCode, country) DO UPDATE SET
-                fetchedAt = excluded.fetchedAt,
-                data = excluded.data
             """,
             (
                 weather.postal_code,
