@@ -651,6 +651,60 @@ def build_local_ip_sensor_discovery(
     }
 
 
+def build_fan_timer_remaining_sensor_discovery(
+    serial: str,
+    topic_prefix: str,
+) -> dict[str, Any]:
+    """Build Home Assistant discovery payload for fan timer remaining sensor."""
+    return {
+        "unique_id": f"nolongerevil_{serial}_fan_timer_remaining",
+        "name": "Fan Timer Remaining",
+        "object_id": f"nest_{serial}_fan_timer_remaining",
+        "device": {
+            "identifiers": [f"nolongerevil_{serial}"],
+        },
+        "state_topic": f"{topic_prefix}/{serial}/ha/fan_timer_remaining",
+        "unit_of_measurement": "min",
+        "icon": "mdi:fan-clock",
+        "state_class": "measurement",
+        "availability": {
+            "topic": f"{topic_prefix}/{serial}/availability",
+            "payload_available": "online",
+            "payload_not_available": "offline",
+        },
+        "qos": 0,
+    }
+
+
+def build_fan_duration_number_discovery(
+    serial: str,
+    topic_prefix: str,
+) -> dict[str, Any]:
+    """Build Home Assistant discovery payload for fan duration number entity."""
+    return {
+        "unique_id": f"nolongerevil_{serial}_fan_duration",
+        "name": "Fan Duration",
+        "object_id": f"nest_{serial}_fan_duration",
+        "device": {
+            "identifiers": [f"nolongerevil_{serial}"],
+        },
+        "state_topic": f"{topic_prefix}/{serial}/ha/fan_duration",
+        "command_topic": f"{topic_prefix}/{serial}/ha/fan_duration/set",
+        "unit_of_measurement": "min",
+        "icon": "mdi:fan-clock",
+        "min": 15,
+        "max": 1440,
+        "step": 15,
+        "mode": "slider",
+        "availability": {
+            "topic": f"{topic_prefix}/{serial}/availability",
+            "payload_available": "online",
+            "payload_not_available": "offline",
+        },
+        "qos": 1,
+    }
+
+
 def get_all_discovery_configs(
     serial: str,
     device_values: dict[str, Any],
@@ -792,6 +846,16 @@ def get_all_discovery_configs(
     local_ip_payload = build_local_ip_sensor_discovery(serial, topic_prefix)
     configs.append((local_ip_topic, local_ip_payload))
 
+    # Fan timer remaining sensor
+    fan_timer_topic = f"{discovery_prefix}/sensor/nest_{serial}/fan_timer_remaining/config"
+    fan_timer_payload = build_fan_timer_remaining_sensor_discovery(serial, topic_prefix)
+    configs.append((fan_timer_topic, fan_timer_payload))
+
+    # Fan duration number entity
+    fan_duration_topic = f"{discovery_prefix}/number/nest_{serial}/fan_duration/config"
+    fan_duration_payload = build_fan_duration_number_discovery(serial, topic_prefix)
+    configs.append((fan_duration_topic, fan_duration_payload))
+
     return configs
 
 
@@ -832,4 +896,6 @@ def get_discovery_removal_topics(
         f"{discovery_prefix}/binary_sensor/nest_{serial}/aux_heater/config",
         f"{discovery_prefix}/binary_sensor/nest_{serial}/heat_pump_ready/config",
         f"{discovery_prefix}/sensor/nest_{serial}/local_ip/config",
+        f"{discovery_prefix}/sensor/nest_{serial}/fan_timer_remaining/config",
+        f"{discovery_prefix}/number/nest_{serial}/fan_duration/config",
     ]

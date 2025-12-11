@@ -225,7 +225,9 @@ class MqttIntegration(BaseIntegration):
 
         elif command == "fan_mode":
             if payload.lower() == "on":
-                timeout_timestamp = int(time.time()) + 3600
+                # Use stored fan duration preference (default 60 minutes)
+                duration_minutes = device_obj.value.get("fan_timer_duration_minutes", 60)
+                timeout_timestamp = int(time.time()) + (duration_minutes * 60)
                 await self._update_device_fields(
                     serial,
                     device_obj,
@@ -269,6 +271,30 @@ class MqttIntegration(BaseIntegration):
                 await self._update_device_value(
                     serial, device_obj, "eco", {"mode": "manual-eco", "leaf": True}
                 )
+
+        elif command == "fan_duration":
+            # Store the fan duration preference
+            try:
+                duration_minutes = int(float(payload))
+                # Clamp to valid range (15-1440 minutes = 15min to 24 hours)
+                duration_minutes = max(15, min(1440, duration_minutes))
+
+                # Store the preference
+                await self._update_device_value(
+                    serial, device_obj, "fan_timer_duration_minutes", duration_minutes
+                )
+
+                # If fan is currently running, update the timer to use new duration
+                current_timeout = device_obj.value.get("fan_timer_timeout", 0)
+                now_seconds = int(time.time())
+                if current_timeout > now_seconds:
+                    # Fan is active, update the timeout
+                    new_timeout = now_seconds + (duration_minutes * 60)
+                    await self._update_device_value(
+                        serial, device_obj, "fan_timer_timeout", new_timeout
+                    )
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid fan duration value: {payload}")
 
         else:
             logger.warning(f"Unknown HA command: {command}")
@@ -732,6 +758,39 @@ class MqttIntegration(BaseIntegration):
                 str(local_ip),
                 retain=True,
             )
+
+        # Fan timer remaining (calculate from fan_timer_timeout)
+        fan_timeout = device_values.get("fan_timer_timeout", 0)
+        if fan_timeout and isinstance(fan_timeout, (int, float)):
+            now_seconds = int(time.time())
+            if fan_timeout > now_seconds:
+                minutes_remaining = max(0, (fan_timeout - now_seconds) // 60)
+                await client.publish(
+                    f"{prefix}/{serial}/ha/fan_timer_remaining",
+                    str(minutes_remaining),
+                    retain=True,
+                )
+            else:
+                # Timer expired or not active
+                await client.publish(
+                    f"{prefix}/{serial}/ha/fan_timer_remaining",
+                    "0",
+                    retain=True,
+                )
+        else:
+            await client.publish(
+                f"{prefix}/{serial}/ha/fan_timer_remaining",
+                "0",
+                retain=True,
+            )
+
+        # Fan duration preference (with default of 60 minutes)
+        fan_duration = device_values.get("fan_timer_duration_minutes", 60)
+        await client.publish(
+            f"{prefix}/{serial}/ha/fan_duration",
+            str(fan_duration),
+            retain=True,
+        )
 
         logger.debug(f"Published HA state for {serial}")
 

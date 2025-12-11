@@ -110,15 +110,15 @@ async def set_away(
 
 
 async def set_fan(
-    _state_service: DeviceStateService,
-    _serial: str,
+    state_service: DeviceStateService,
+    serial: str,
     value: Any,
 ) -> dict[str, Any]:
     """Set fan mode or timer.
 
     Args:
-        _state_service: Device state service (unused)
-        _serial: Device serial (unused)
+        state_service: Device state service
+        serial: Device serial
         value: "on", "auto", or duration in seconds
 
     Returns:
@@ -126,13 +126,17 @@ async def set_fan(
     """
     if isinstance(value, str):
         if value.lower() == "on":
-            # Turn fan on indefinitely
-            return {"fan_timer_timeout": int(time.time()) + 86400}  # 24 hours
+            # Use stored fan duration preference (default 60 minutes)
+            device_obj = state_service.get_object(serial, f"device.{serial}")
+            duration_minutes = 60  # default
+            if device_obj:
+                duration_minutes = device_obj.value.get("fan_timer_duration_minutes", 60)
+            return {"fan_timer_timeout": int(time.time()) + (duration_minutes * 60)}
         elif value.lower() == "auto":
             # Turn off fan timer
             return {"fan_timer_timeout": 0}
     elif isinstance(value, (int, float)):
-        # Set fan timer duration
+        # Set fan timer duration (value is in seconds for backwards compatibility)
         duration = int(value)
         return {"fan_timer_timeout": int(time.time()) + duration}
 
