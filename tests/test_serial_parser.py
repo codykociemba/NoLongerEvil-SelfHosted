@@ -1,7 +1,5 @@
 """Tests for serial parser utilities."""
 
-import pytest
-
 from nolongerevil.lib.serial_parser import (
     extract_serial_from_basic_auth,
     sanitize_serial,

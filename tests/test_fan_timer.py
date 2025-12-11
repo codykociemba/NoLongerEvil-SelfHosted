@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 from nolongerevil.lib.types import FanTimerState
 from nolongerevil.utils.fan_timer import (
     get_fan_timer_state,

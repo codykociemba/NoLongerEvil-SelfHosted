@@ -1,7 +1,5 @@
 """Tests for URL normalizer middleware."""
 
-import pytest
-
 from nolongerevil.middleware.url_normalizer import normalize_url
 
 

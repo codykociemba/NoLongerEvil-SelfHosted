@@ -1,7 +1,5 @@
 """Tests for structure assignment utility."""
 
-import pytest
-
 from nolongerevil.utils.structure_assignment import (
     assign_structure_id,
     derive_structure_id,

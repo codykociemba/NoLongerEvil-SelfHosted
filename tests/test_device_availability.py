@@ -68,9 +68,7 @@ class TestDeviceAvailabilityInit:
 
     def test_custom_timeout(self, mock_subscription_manager):
         """Test custom timeout value."""
-        service = DeviceAvailability(
-            mock_subscription_manager, timeout_seconds=120
-        )
+        service = DeviceAvailability(mock_subscription_manager, timeout_seconds=120)
         assert service._timeout == timedelta(seconds=120)
 
 

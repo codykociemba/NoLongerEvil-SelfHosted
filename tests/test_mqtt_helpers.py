@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 from nolongerevil.integrations.mqtt.helpers import (
     battery_voltage_to_percent,
     celsius_to_fahrenheit,

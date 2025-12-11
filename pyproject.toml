@@ -61,6 +61,7 @@ packages = ["src/nolongerevil"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 addopts = "-v --cov=nolongerevil --cov-report=term-missing"
 
@@ -95,6 +96,7 @@ known-first-party = ["nolongerevil"]
 "src/nolongerevil/integrations/mqtt/helpers.py" = ["ARG001"]
 "src/nolongerevil/integrations/mqtt/mqtt_integration.py" = ["ARG002"]
 "src/nolongerevil/models/base.py" = ["ARG002"]  # SQLAlchemy TypeDecorator interface requires dialect param
+"tests/conftest.py" = ["ARG001"]  # pytest hook requires session arg
 
 [tool.mypy]
 python_version = "3.11"
@@ -116,3 +118,8 @@ warn_unused_configs = true
 [[tool.mypy.overrides]]
 module = ["aiomqtt.*", "aiosqlite.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# SQLModel/SQLAlchemy column operations (is_, desc, etc) are not properly typed
+module = ["nolongerevil.services.sqlmodel_service"]
+disable_error_code = ["union-attr", "attr-defined", "arg-type"]

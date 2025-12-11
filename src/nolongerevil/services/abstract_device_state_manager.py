@@ -84,6 +84,11 @@ class AbstractDeviceStateManager(ABC):
         pass
 
     @abstractmethod
+    async def get_latest_entry_key_by_serial(self, serial: str) -> EntryKey | None:
+        """Get the most recent entry key by serial (including expired/claimed)."""
+        pass
+
+    @abstractmethod
     async def claim_entry_key(self, code: str, user_id: str) -> bool:
         """Claim an entry key for a user."""
         pass

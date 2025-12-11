@@ -1,30 +1,19 @@
 """Pytest fixtures and configuration."""
 
-import asyncio
 import gc
 import tempfile
 import threading
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
-from typing import AsyncGenerator, Generator
 
 import pytest
 import pytest_asyncio
-from aiohttp import web
-from aiohttp.test_utils import TestClient
 
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
 from nolongerevil.services.sqlmodel_service import SQLModelService
 from nolongerevil.services.subscription_manager import SubscriptionManager
 from nolongerevil.services.weather_service import WeatherService
-
-
-@pytest.fixture(scope="session")
-def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """Create event loop for async tests."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture

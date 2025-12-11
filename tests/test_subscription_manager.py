@@ -1,6 +1,5 @@
 """Tests for subscription manager."""
 
-import asyncio
 from datetime import datetime
 
 import pytest

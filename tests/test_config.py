@@ -1,9 +1,5 @@
 """Tests for configuration module."""
 
-import os
-
-import pytest
-
 from nolongerevil.config.environment import Settings
 
 

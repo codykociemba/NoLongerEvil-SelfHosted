@@ -1,7 +1,5 @@
 """Tests for temperature safety utilities."""
 
-import pytest
-
 from nolongerevil.lib.types import TemperatureSafetyBounds
 from nolongerevil.utils.temperature_safety import (
     celsius_to_fahrenheit,

@@ -70,3 +70,16 @@ def get_structure_id(values: dict[str, Any]) -> str | None:
         Structure ID or None
     """
     return values.get("structure_id")
+
+
+def needs_structure_id(values: dict[str, Any]) -> bool:
+    """Check if device values need a structure ID assigned.
+
+    Args:
+        values: Device object values
+
+    Returns:
+        True if structure_id is missing or empty
+    """
+    structure_id = values.get("structure_id")
+    return not structure_id

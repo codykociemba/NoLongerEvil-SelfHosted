@@ -86,7 +86,14 @@ class SQLModelService(AbstractDeviceStateManager):
             self.db_url = f"sqlite+aiosqlite:///{settings.sqlite3_db_path}"
 
         self.engine: AsyncEngine | None = None
-        self._session_maker: async_sessionmaker[AsyncSession] | None = None
+        self.__session_maker: async_sessionmaker[AsyncSession] | None = None
+
+    @property
+    def _session_maker(self) -> async_sessionmaker[AsyncSession]:
+        """Get the session maker, raising if not initialized."""
+        if self.__session_maker is None:
+            raise RuntimeError("SQLModelService not initialized. Call initialize() first.")
+        return self.__session_maker
 
     async def initialize(self) -> None:
         """Initialize the database connection and schema."""
@@ -96,7 +103,7 @@ class SQLModelService(AbstractDeviceStateManager):
             future=True,
         )
 
-        self._session_maker = async_sessionmaker(
+        self.__session_maker = async_sessionmaker(
             self.engine,
             class_=AsyncSession,
             expire_on_commit=False,
@@ -113,7 +120,7 @@ class SQLModelService(AbstractDeviceStateManager):
         if self.engine:
             await self.engine.dispose()
             self.engine = None
-            self._session_maker = None
+            self.__session_maker = None
             logger.info("SQLModel database connection closed")
 
     # Device state operations
