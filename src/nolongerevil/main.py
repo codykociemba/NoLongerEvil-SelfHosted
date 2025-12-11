@@ -161,7 +161,7 @@ async def run_server() -> None:
     logger.info("Initializing SQLModel storage backend")
     storage = SQLModelService()
 
-    # Initialize services (this will initialize storage internally)
+    # Initialize services
     state_service = DeviceStateService(storage)
     await state_service.initialize()
 

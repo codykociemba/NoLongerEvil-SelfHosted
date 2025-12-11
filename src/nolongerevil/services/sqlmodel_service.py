@@ -337,31 +337,36 @@ class SQLModelService(AbstractDeviceStateManager):
         """Get cached weather data."""
         async with self._session_maker() as session:
             result = await session.execute(
-                select(WeatherDataModel).where(
+                select(WeatherDataModel)
+                .where(
                     WeatherDataModel.postalCode == postal_code,
                     WeatherDataModel.country == country,
                 )
+                .order_by(WeatherDataModel.fetchedAt.desc())  # Most recent first
+                .limit(1)
             )
             model = result.scalar_one_or_none()
             return model_to_weather_data(model) if model else None
 
     async def cache_weather(self, weather: WeatherData) -> None:
-        """Cache weather data."""
+        """Cache weather data.
+
+        Note: Deletes all existing entries and inserts a new one to avoid duplicates.
+        """
+        from sqlalchemy import delete
+
         async with self._session_maker() as session:
-            result = await session.execute(
-                select(WeatherDataModel).where(
+            # Delete all existing entries for this postal_code/country
+            await session.execute(
+                delete(WeatherDataModel).where(
                     WeatherDataModel.postalCode == weather.postal_code,
                     WeatherDataModel.country == weather.country,
                 )
             )
-            existing = result.scalar_one_or_none()
 
-            if existing:
-                existing.fetchedAt = timestamp_to_ms(weather.fetched_at) or now_ms()
-                existing.data = json.dumps(weather.data)
-            else:
-                model = weather_data_to_model(weather)
-                session.add(model)
+            # Insert new entry
+            model = weather_data_to_model(weather)
+            session.add(model)
 
             await session.commit()
 
