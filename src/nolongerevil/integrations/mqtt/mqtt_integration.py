@@ -484,6 +484,13 @@ class MqttIntegration(BaseIntegration):
         device_values = device_obj.value or {}
         shared_values = shared_obj.value or {}
 
+        # Mode (convert Nest mode to HA mode) - calculate early as it affects discovery and temp publishing
+        ha_mode = nest_mode_to_ha(shared_values.get("target_temperature_type"))
+
+        # Republish discovery to ensure configuration matches current mode
+        # This is critical for heat_cool mode to show dual temperature sliders
+        await self._publish_discovery(client, serial, ha_mode)
+
         # Current temperature (from shared or device)
         current_temp = shared_values.get("current_temperature") or device_values.get(
             "current_temperature"
@@ -503,30 +510,50 @@ class MqttIntegration(BaseIntegration):
                 retain=True,
             )
 
-        # Target temperature
-        if shared_values.get("target_temperature") is not None:
+        # Target temperatures - publish based on mode
+        # In heat_cool mode: publish high/low but NOT single target_temperature
+        # In heat/cool/off mode: publish single target_temperature but NOT high/low
+        if ha_mode == "heat_cool":
+            # Clear single target temperature (in case we switched from another mode)
             await client.publish(
                 f"{prefix}/{serial}/ha/target_temperature",
-                str(shared_values["target_temperature"]),
+                "",
                 retain=True,
             )
-
-        # Target temperature low/high
-        if shared_values.get("target_temperature_low") is not None:
-            await client.publish(
-                f"{prefix}/{serial}/ha/target_temperature_low",
-                str(shared_values["target_temperature_low"]),
-                retain=True,
-            )
-        if shared_values.get("target_temperature_high") is not None:
+            # Publish high/low targets
+            if shared_values.get("target_temperature_low") is not None:
+                await client.publish(
+                    f"{prefix}/{serial}/ha/target_temperature_low",
+                    str(shared_values["target_temperature_low"]),
+                    retain=True,
+                )
+            if shared_values.get("target_temperature_high") is not None:
+                await client.publish(
+                    f"{prefix}/{serial}/ha/target_temperature_high",
+                    str(shared_values["target_temperature_high"]),
+                    retain=True,
+                )
+        else:
+            # Clear high/low targets (in case we switched from heat_cool mode)
             await client.publish(
                 f"{prefix}/{serial}/ha/target_temperature_high",
-                str(shared_values["target_temperature_high"]),
+                "",
                 retain=True,
             )
+            await client.publish(
+                f"{prefix}/{serial}/ha/target_temperature_low",
+                "",
+                retain=True,
+            )
+            # Publish single target temperature
+            if shared_values.get("target_temperature") is not None:
+                await client.publish(
+                    f"{prefix}/{serial}/ha/target_temperature",
+                    str(shared_values["target_temperature"]),
+                    retain=True,
+                )
 
-        # Mode (convert Nest mode to HA mode)
-        ha_mode = nest_mode_to_ha(shared_values.get("target_temperature_type"))
+        # Mode - publish (already calculated above)
         await client.publish(
             f"{prefix}/{serial}/ha/mode",
             ha_mode,
@@ -821,13 +848,25 @@ class MqttIntegration(BaseIntegration):
         except Exception as e:
             logger.error(f"Failed to publish device disconnected: {e}")
 
-    async def _publish_discovery(self, client: aiomqtt.Client, serial: str) -> None:
-        """Publish Home Assistant discovery message for a device."""
+    async def _publish_discovery(
+        self, client: aiomqtt.Client, serial: str, ha_mode: str | None = None
+    ) -> None:
+        """Publish Home Assistant discovery message for a device.
+
+        Args:
+            client: MQTT client
+            serial: Device serial
+            ha_mode: Optional HA mode override. If not provided, derived from shared values.
+        """
         device_obj = self._state_service.get_object(serial, f"device.{serial}")
         shared_obj = self._state_service.get_object(serial, f"shared.{serial}")
 
         device_values = device_obj.value if device_obj else {}
         shared_values = shared_obj.value if shared_obj else {}
+
+        # Determine HA mode for mode-aware discovery
+        if ha_mode is None:
+            ha_mode = nest_mode_to_ha(shared_values.get("target_temperature_type"))
 
         configs = get_all_discovery_configs(
             serial,
@@ -835,12 +874,13 @@ class MqttIntegration(BaseIntegration):
             shared_values,
             self._topic_prefix,
             self._discovery_prefix,
+            ha_mode,
         )
 
         for topic, payload in configs:
             await client.publish(topic, json.dumps(payload), retain=True)
 
-        logger.info(f"Published HA discovery for {serial}")
+        logger.info(f"Published HA discovery for {serial} (mode: {ha_mode})")
 
     async def _remove_discovery(self, client: aiomqtt.Client, serial: str) -> None:
         """Remove Home Assistant discovery messages for a device."""
