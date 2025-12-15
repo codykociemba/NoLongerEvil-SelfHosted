@@ -243,17 +243,14 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
             outdated_objects.append(response_obj)
             continue
 
-        # Check if server has newer data
+        # Only consider server data "newer" if revision is higher
+        # Timestamp alone shouldn't trigger updates - matching revisions means matching data
         server_revision_higher = response_obj.object_revision > client_revision
-        server_timestamp_higher = response_obj.object_timestamp > client_timestamp
 
-        if server_revision_higher or server_timestamp_higher:
+        if server_revision_higher:
             # Server has newer data - send our data to device
             outdated_objects.append(response_obj)
-        elif (
-            client_revision > response_obj.object_revision
-            or client_timestamp > response_obj.object_timestamp
-        ):
+        elif client_revision > response_obj.object_revision:
             # Client has newer data - merge their data
             objects_to_merge.append((client_obj, response_obj))
 
