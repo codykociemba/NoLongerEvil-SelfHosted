@@ -686,49 +686,12 @@ class MqttIntegration(BaseIntegration):
             except (ValueError, TypeError):
                 pass
 
-        # Backplate temperature
-        backplate_temp = device_values.get("backplate_temperature")
-        if backplate_temp is not None:
-            await client.publish(
-                f"{prefix}/{serial}/ha/backplate_temperature",
-                str(backplate_temp),
-                retain=True,
-            )
-
         # Sunlight correction active
         sunlight_correction = device_values.get("sunlight_correction_active")
         if sunlight_correction is not None:
             await client.publish(
                 f"{prefix}/{serial}/ha/sunlight_correction_active",
                 str(sunlight_correction).lower(),
-                retain=True,
-            )
-
-        # Preconditioning active
-        preconditioning = device_values.get("preconditioning_active")
-        if preconditioning is not None:
-            await client.publish(
-                f"{prefix}/{serial}/ha/preconditioning_active",
-                str(preconditioning).lower(),
-                retain=True,
-            )
-
-        # Safety state (convert to binary - "none" = false, anything else = true)
-        safety_state = device_values.get("safety_state")
-        if safety_state is not None:
-            safety_issue = str(safety_state).lower() != "none"
-            await client.publish(
-                f"{prefix}/{serial}/ha/safety_issue",
-                str(safety_issue).lower(),
-                retain=True,
-            )
-
-        # HVAC safety shutoff active
-        hvac_safety_shutoff = device_values.get("hvac_safety_shutoff_active")
-        if hvac_safety_shutoff is not None:
-            await client.publish(
-                f"{prefix}/{serial}/ha/hvac_safety_shutoff_active",
-                str(hvac_safety_shutoff).lower(),
                 retain=True,
             )
 
@@ -756,15 +719,6 @@ class MqttIntegration(BaseIntegration):
             await client.publish(
                 f"{prefix}/{serial}/ha/schedule_mode",
                 str(schedule_mode),
-                retain=True,
-            )
-
-        # Aux heater state (from shared values)
-        aux_heater = shared_values.get("hvac_aux_heater_state")
-        if aux_heater is not None:
-            await client.publish(
-                f"{prefix}/{serial}/ha/aux_heater_active",
-                str(aux_heater).lower(),
                 retain=True,
             )
 
