@@ -863,8 +863,8 @@ class MqttIntegration(BaseIntegration):
                     if shared_obj and self._publish_raw:
                         await self._publish_raw_state(client, serial, "shared", shared_obj.value)
 
-                # Publish HA state
-                if self._ha_discovery:
+                # Publish HA state (only if both objects exist - otherwise wait for state change)
+                if self._ha_discovery and device_obj and shared_obj:
                     await self._publish_ha_state(client, serial)
 
                 # Publish availability
