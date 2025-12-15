@@ -476,29 +476,6 @@ def build_learning_mode_binary_sensor_discovery(
     }
 
 
-def build_schedule_mode_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for current schedule mode sensor."""
-    return {
-        "unique_id": f"nolongerevil_{serial}_schedule_mode",
-        "name": "Schedule Mode",
-        "object_id": f"nest_{serial}_schedule_mode",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
-        "state_topic": f"{topic_prefix}/{serial}/ha/schedule_mode",
-        "icon": "mdi:calendar-clock",
-        "availability": {
-            "topic": f"{topic_prefix}/{serial}/availability",
-            "payload_available": "online",
-            "payload_not_available": "offline",
-        },
-        "qos": 0,
-    }
-
-
 def build_heat_pump_ready_binary_sensor_discovery(
     serial: str,
     topic_prefix: str,
@@ -706,11 +683,6 @@ def get_all_discovery_configs(
     learning_mode_payload = build_learning_mode_binary_sensor_discovery(serial, topic_prefix)
     configs.append((learning_mode_topic, learning_mode_payload))
 
-    # Schedule mode sensor
-    schedule_mode_topic = f"{discovery_prefix}/sensor/nest_{serial}/schedule_mode/config"
-    schedule_mode_payload = build_schedule_mode_sensor_discovery(serial, topic_prefix)
-    configs.append((schedule_mode_topic, schedule_mode_payload))
-
     # Heat pump ready binary sensor
     heat_pump_ready_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/heat_pump_ready/config"
     heat_pump_ready_payload = build_heat_pump_ready_binary_sensor_discovery(serial, topic_prefix)
@@ -763,7 +735,6 @@ def get_discovery_removal_topics(
         f"{discovery_prefix}/binary_sensor/nest_{serial}/sunlight_correction/config",
         f"{discovery_prefix}/sensor/nest_{serial}/compressor_lockout/config",
         f"{discovery_prefix}/binary_sensor/nest_{serial}/learning_mode/config",
-        f"{discovery_prefix}/sensor/nest_{serial}/schedule_mode/config",
         f"{discovery_prefix}/binary_sensor/nest_{serial}/heat_pump_ready/config",
         f"{discovery_prefix}/sensor/nest_{serial}/local_ip/config",
         f"{discovery_prefix}/sensor/nest_{serial}/fan_timer_remaining/config",

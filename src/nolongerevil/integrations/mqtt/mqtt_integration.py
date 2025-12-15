@@ -713,15 +713,6 @@ class MqttIntegration(BaseIntegration):
                 retain=True,
             )
 
-        # Current schedule mode
-        schedule_mode = device_values.get("current_schedule_mode")
-        if schedule_mode is not None:
-            await client.publish(
-                f"{prefix}/{serial}/ha/schedule_mode",
-                str(schedule_mode),
-                retain=True,
-            )
-
         # Heat pump ready
         heat_pump_ready = device_values.get("heatpump_ready")
         if heat_pump_ready is not None:
