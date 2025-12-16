@@ -26,8 +26,10 @@ def build_climate_discovery_payload(
     This avoids double-conversion bugs when Nest display unit changes.
 
     The discovery config is mode-aware: in heat_cool mode, only the high/low
-    temperature topics are included. In other modes, only the single temperature
-    topic is included. This ensures HA shows the correct UI controls.
+    temperature topics are included. In heat/cool modes, only the single temperature
+    topic is included. In off mode, no temperature topics are included since you
+    can't set a temperature when the thermostat is off. This ensures HA shows the
+    correct UI controls.
 
     Args:
         serial: Device serial
@@ -110,10 +112,11 @@ def build_climate_discovery_payload(
         payload["temperature_low_state_topic"] = (
             f"{topic_prefix}/{serial}/ha/target_temperature_low"
         )
-    else:
-        # Target temperature (single setpoint for heat/cool/off modes)
+    elif ha_mode in ("heat", "cool"):
+        # Target temperature (single setpoint for heat/cool modes)
         payload["temperature_command_topic"] = f"{topic_prefix}/{serial}/ha/target_temperature/set"
         payload["temperature_state_topic"] = f"{topic_prefix}/{serial}/ha/target_temperature"
+    # else: off mode - no temperature topics (can't set temperature when off)
 
     return payload
 
