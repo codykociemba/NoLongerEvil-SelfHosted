@@ -1,16 +1,18 @@
 """API key authentication middleware."""
 
 import hashlib
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
-from functools import wraps
+from typing import TYPE_CHECKING
 
-from aiohttp import web
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.types import APIKey, DeviceSharePermission
-from nolongerevil.services.device_state_service import DeviceStateService
+
+if TYPE_CHECKING:
+    from nolongerevil.services.device_state_service import DeviceStateService
 
 logger = get_logger(__name__)
 
@@ -35,7 +37,7 @@ def hash_api_key(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
-def extract_api_key(request: web.Request) -> str | None:
+def extract_api_key(request: Request) -> str | None:
     """Extract API key from request headers.
 
     Supports:
@@ -43,7 +45,7 @@ def extract_api_key(request: web.Request) -> str | None:
     - Direct header: X-API-Key: nlapi_xxx
 
     Args:
-        request: aiohttp request object
+        request: Starlette request object
 
     Returns:
         Extracted API key or None
@@ -65,7 +67,7 @@ def extract_api_key(request: web.Request) -> str | None:
 
 async def validate_api_key(
     key: str,
-    state_service: DeviceStateService,
+    state_service: "DeviceStateService",
 ) -> APIKeyContext | None:
     """Validate an API key and return context.
 
@@ -101,7 +103,7 @@ async def check_device_permission(
     context: APIKeyContext,
     serial: str,
     required_scope: str,
-    state_service: DeviceStateService,
+    state_service: "DeviceStateService",
 ) -> bool:
     """Check if API key has permission for a device operation.
 
@@ -157,68 +159,56 @@ async def check_device_permission(
     return True
 
 
-def require_api_key(
-    state_service: DeviceStateService,
+async def require_api_key_handler(
+    request: Request,
+    state_service: "DeviceStateService",
     required_scope: str = "read",
-) -> Callable[
-    [Callable[[web.Request], Awaitable[web.Response]]],
-    Callable[[web.Request], Awaitable[web.Response]],
-]:
-    """Decorator to require API key authentication.
+) -> tuple[APIKeyContext | None, JSONResponse | None]:
+    """Check API key authentication for a request.
 
     Args:
+        request: Starlette request object
         state_service: Device state service
         required_scope: Required scope for the endpoint
 
     Returns:
-        Decorator function
+        Tuple of (context, error_response). If authentication succeeds,
+        context is set and error_response is None. If it fails,
+        context is None and error_response contains the error.
     """
+    # Extract API key
+    key = extract_api_key(request)
+    if not key:
+        return None, JSONResponse(
+            {"error": "API key required"},
+            status_code=401,
+        )
 
-    def decorator(
-        handler: Callable[[web.Request], Awaitable[web.Response]],
-    ) -> Callable[[web.Request], Awaitable[web.Response]]:
-        @wraps(handler)
-        async def wrapper(request: web.Request) -> web.Response:
-            # Extract API key
-            key = extract_api_key(request)
-            if not key:
-                return web.json_response(
-                    {"error": "API key required"},
-                    status=401,
-                )
+    # Validate API key
+    context = await validate_api_key(key, state_service)
+    if not context:
+        return None, JSONResponse(
+            {"error": "Invalid or expired API key"},
+            status_code=401,
+        )
 
-            # Validate API key
-            context = await validate_api_key(key, state_service)
-            if not context:
-                return web.json_response(
-                    {"error": "Invalid or expired API key"},
-                    status=401,
-                )
+    # Check scope
+    if required_scope not in context.api_key.permissions.scopes:
+        return None, JSONResponse(
+            {"error": f"Missing required scope: {required_scope}"},
+            status_code=403,
+        )
 
-            # Check scope
-            if required_scope not in context.api_key.permissions.scopes:
-                return web.json_response(
-                    {"error": f"Missing required scope: {required_scope}"},
-                    status=403,
-                )
-
-            # Store context in request for handler
-            request["api_key_context"] = context
-
-            return await handler(request)
-
-        return wrapper
-
-    return decorator
+    return context, None
 
 
-def get_api_key_context(request: web.Request) -> APIKeyContext | None:
-    """Get API key context from request.
+def get_api_key_context(request: Request) -> APIKeyContext | None:
+    """Get API key context from request state.
 
     Args:
-        request: aiohttp request object
+        request: Starlette request object
 
     Returns:
         API key context or None if not authenticated
     """
-    return request.get("api_key_context")
+    return getattr(request.state, "api_key_context", None)

@@ -1,6 +1,6 @@
 """Nest API routes module."""
 
-from aiohttp import web
+from starlette.routing import Route
 
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
@@ -16,33 +16,36 @@ from .upload import create_upload_routes
 from .weather import create_weather_routes
 
 
-def setup_nest_routes(
-    app: web.Application,
+def get_nest_routes(
     state_service: DeviceStateService,
     subscription_manager: SubscriptionManager,
     weather_service: WeatherService,
     device_availability: DeviceAvailability,
-) -> None:
-    """Set up all Nest API routes.
+) -> list[Route]:
+    """Get all Nest API routes.
 
     Args:
-        app: aiohttp application
         state_service: Device state service
         subscription_manager: Subscription manager
         weather_service: Weather service
         device_availability: Device availability service
+
+    Returns:
+        List of all Nest routes
     """
-    create_entry_routes(app)
-    create_ping_routes(app)
-    create_passphrase_routes(app, state_service)
-    create_pro_info_routes(app)
-    create_transport_routes(app, state_service, subscription_manager, device_availability)
-    create_upload_routes(app)
-    create_weather_routes(app, weather_service)
+    routes: list[Route] = []
+    routes.extend(create_entry_routes())
+    routes.extend(create_ping_routes())
+    routes.extend(create_passphrase_routes(state_service))
+    routes.extend(create_pro_info_routes())
+    routes.extend(create_transport_routes(state_service, subscription_manager, device_availability))
+    routes.extend(create_upload_routes())
+    routes.extend(create_weather_routes(weather_service))
+    return routes
 
 
 __all__ = [
-    "setup_nest_routes",
+    "get_nest_routes",
     "create_entry_routes",
     "create_passphrase_routes",
     "create_ping_routes",

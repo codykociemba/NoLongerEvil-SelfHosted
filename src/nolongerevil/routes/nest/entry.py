@@ -1,6 +1,8 @@
 """Nest entry endpoint - service discovery."""
 
-from aiohttp import web
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from nolongerevil.config import settings
 from nolongerevil.lib.logger import get_logger
@@ -8,7 +10,7 @@ from nolongerevil.lib.logger import get_logger
 logger = get_logger(__name__)
 
 
-async def handle_entry(request: web.Request) -> web.Response:
+async def handle_entry(request: Request) -> JSONResponse:
     """Handle Nest service discovery request.
 
     Returns URLs for all Nest services that the device needs to communicate with.
@@ -33,17 +35,18 @@ async def handle_entry(request: web.Request) -> web.Response:
         "tier_name": "local",
     }
 
-    logger.debug(f"Entry request from {request.remote}")
+    logger.debug(f"Entry request from {request.client.host if request.client else 'unknown'}")
 
-    return web.json_response(response_data)
+    return JSONResponse(response_data)
 
 
-def create_entry_routes(app: web.Application) -> None:
-    """Register entry routes.
+def create_entry_routes() -> list[Route]:
+    """Create entry routes.
 
-    Args:
-        app: aiohttp application
+    Returns:
+        List of Starlette routes
     """
     # Handle both GET and POST for /nest/entry - devices may use either
-    app.router.add_get("/nest/entry", handle_entry)
-    app.router.add_post("/nest/entry", handle_entry)
+    return [
+        Route("/nest/entry", handle_entry, methods=["GET", "POST"]),
+    ]

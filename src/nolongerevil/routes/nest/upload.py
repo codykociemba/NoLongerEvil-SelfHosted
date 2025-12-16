@@ -1,6 +1,8 @@
 """Nest upload endpoint - device log file upload."""
 
-from aiohttp import web
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.serial_parser import extract_serial_from_request
@@ -8,7 +10,7 @@ from nolongerevil.lib.serial_parser import extract_serial_from_request
 logger = get_logger(__name__)
 
 
-async def handle_upload(request: web.Request) -> web.Response:
+async def handle_upload(request: Request) -> JSONResponse:
     """Handle device log file upload.
 
     Devices may upload diagnostic logs. We acknowledge receipt
@@ -21,19 +23,19 @@ async def handle_upload(request: web.Request) -> web.Response:
 
     # Read the upload data (but we don't store it by default)
     try:
-        data = await request.read()
+        data = await request.body()
         size = len(data)
         logger.info(f"Received log upload from device {serial or 'unknown'}: {size} bytes")
     except Exception as e:
         logger.warning(f"Failed to read upload data: {e}")
 
-    return web.json_response({"status": "ok"})
+    return JSONResponse({"status": "ok"})
 
 
-def create_upload_routes(app: web.Application) -> None:
-    """Register upload routes.
+def create_upload_routes() -> list[Route]:
+    """Create upload routes.
 
-    Args:
-        app: aiohttp application
+    Returns:
+        List of Starlette routes
     """
-    app.router.add_post("/nest/upload", handle_upload)
+    return [Route("/nest/upload", handle_upload, methods=["POST"])]

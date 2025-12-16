@@ -4,7 +4,9 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from aiohttp import web
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from nolongerevil.lib.consts import API_MODE_TO_NEST, ApiMode
 from nolongerevil.lib.logger import get_logger
@@ -30,16 +32,7 @@ async def set_temperature(
     serial: str,
     value: Any,
 ) -> dict[str, Any]:
-    """Set target temperature.
-
-    Args:
-        state_service: Device state service
-        serial: Device serial
-        value: Temperature in Celsius or dict with high/low
-
-    Returns:
-        Updated values
-    """
+    """Set target temperature."""
     device_obj = state_service.get_object(serial, f"device.{serial}")
     shared_obj = state_service.get_object(serial, f"shared.{serial}")
 
@@ -92,16 +85,7 @@ async def set_away(
     _serial: str,
     value: bool,
 ) -> dict[str, Any]:
-    """Set away mode.
-
-    Args:
-        _state_service: Device state service (unused)
-        _serial: Device serial (unused)
-        value: True for away, False for home
-
-    Returns:
-        Updated values (for structure object)
-    """
+    """Set away mode."""
     return {"away": value}
 
 
@@ -110,29 +94,17 @@ async def set_fan(
     serial: str,
     value: Any,
 ) -> dict[str, Any]:
-    """Set fan mode or timer.
-
-    Args:
-        state_service: Device state service
-        serial: Device serial
-        value: "on", "auto", or duration in seconds
-
-    Returns:
-        Updated values
-    """
+    """Set fan mode or timer."""
     if isinstance(value, str):
         if value.lower() == "on":
-            # Use stored fan duration preference (default 60 minutes)
             device_obj = state_service.get_object(serial, f"device.{serial}")
             duration_minutes = 60  # default
             if device_obj:
                 duration_minutes = device_obj.value.get("fan_timer_duration_minutes", 60)
             return {"fan_timer_timeout": int(time.time()) + (duration_minutes * 60)}
         elif value.lower() == "auto":
-            # Turn off fan timer
             return {"fan_timer_timeout": 0}
     elif isinstance(value, (int, float)):
-        # Set fan timer duration (value is in seconds for backwards compatibility)
         duration = int(value)
         return {"fan_timer_timeout": int(time.time()) + duration}
 
@@ -144,16 +116,7 @@ async def set_eco_temperatures(
     serial: str,
     value: dict[str, float],
 ) -> dict[str, Any]:
-    """Set eco mode temperatures.
-
-    Args:
-        state_service: Device state service
-        serial: Device serial
-        value: Dict with "high" and/or "low" temperatures
-
-    Returns:
-        Updated values
-    """
+    """Set eco mode temperatures."""
     values = {}
     if "high" in value:
         values["eco_temperature_high"] = float(value["high"])
@@ -180,118 +143,108 @@ COMMAND_HANDLERS: dict[str, CommandHandler] = {
 }
 
 
-async def handle_command(request: web.Request) -> web.Response:
-    """Handle POST /command - send command to thermostat.
+def create_command_handler(
+    state_service: DeviceStateService,
+    subscription_manager: SubscriptionManager,
+):
+    """Create command handler with injected services."""
 
-    Request body:
-        {
-            "serial": "DEVICE_SERIAL",
-            "command": "set_temperature",
-            "value": 21.5
-        }
-
-    Returns:
-        JSON response with command result
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response(
-            {"success": False, "message": "Invalid JSON"},
-            status=400,
-        )
-
-    serial = body.get("serial")
-    command = body.get("command")
-    value = body.get("value")
-
-    if not serial:
-        return web.json_response(
-            {"success": False, "message": "Serial required"},
-            status=400,
-        )
-
-    if not command:
-        return web.json_response(
-            {"success": False, "message": "Command required"},
-            status=400,
-        )
-
-    handler = COMMAND_HANDLERS.get(command)
-    if not handler:
-        return web.json_response(
-            {"success": False, "message": f"Unknown command: {command}"},
-            status=400,
-        )
-
-    state_service: DeviceStateService = request.app["state_service"]
-    subscription_manager: SubscriptionManager = request.app["subscription_manager"]
-
-    try:
-        # Execute command handler
-        values = await handler(state_service, serial, value)
-
-        if not values:
-            return web.json_response(
-                {"success": False, "message": "No values to update"},
-                status=400,
+    async def handle_command(request: Request) -> JSONResponse:
+        """Handle POST /command - send command to thermostat."""
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(
+                {"success": False, "message": "Invalid JSON"},
+                status_code=400,
             )
 
-        # Determine target object key
-        if command == "set_away":
-            # Away mode is set on structure object
-            shared_obj = state_service.get_object(serial, f"shared.{serial}")
-            structure_id = shared_obj.value.get("structure_id") if shared_obj else None
-            object_key = f"structure.{structure_id}" if structure_id else f"shared.{serial}"
-        else:
-            object_key = f"device.{serial}"
+        serial = body.get("serial")
+        command = body.get("command")
+        value = body.get("value")
 
-        # Update state
-        now = int(time.time())
-        updated_obj = await state_service.merge_object_values(
-            serial=serial,
-            object_key=object_key,
-            values=values,
-            revision=now,
-            timestamp=now,
-        )
+        if not serial:
+            return JSONResponse(
+                {"success": False, "message": "Serial required"},
+                status_code=400,
+            )
 
-        # Notify subscribers
-        await subscription_manager.notify_subscribers(serial, [updated_obj])
+        if not command:
+            return JSONResponse(
+                {"success": False, "message": "Command required"},
+                status_code=400,
+            )
 
-        logger.info(f"Command {command} executed for device {serial}")
+        handler = COMMAND_HANDLERS.get(command)
+        if not handler:
+            return JSONResponse(
+                {"success": False, "message": f"Unknown command: {command}"},
+                status_code=400,
+            )
 
-        return web.json_response(
-            {
+        try:
+            # Execute command handler
+            values = await handler(state_service, serial, value)
+
+            if not values:
+                return JSONResponse(
+                    {"success": False, "message": "No values to update"},
+                    status_code=400,
+                )
+
+            # Determine target object key
+            if command == "set_away":
+                shared_obj = state_service.get_object(serial, f"shared.{serial}")
+                structure_id = shared_obj.value.get("structure_id") if shared_obj else None
+                object_key = f"structure.{structure_id}" if structure_id else f"shared.{serial}"
+            else:
+                object_key = f"device.{serial}"
+
+            # Update state
+            now = int(time.time())
+            updated_obj = await state_service.merge_object_values(
+                serial=serial,
+                object_key=object_key,
+                values=values,
+                revision=now,
+                timestamp=now,
+            )
+
+            # Notify subscribers
+            await subscription_manager.notify_subscribers(serial, [updated_obj])
+
+            logger.info(f"Command {command} executed for device {serial}")
+
+            return JSONResponse({
                 "success": True,
                 "data": {
                     "object_key": updated_obj.object_key,
                     "values": values,
                 },
-            }
-        )
+            })
 
-    except Exception as e:
-        logger.error(f"Command {command} failed for device {serial}: {e}")
-        return web.json_response(
-            {"success": False, "message": str(e)},
-            status=500,
-        )
+        except Exception as e:
+            logger.error(f"Command {command} failed for device {serial}: {e}")
+            return JSONResponse(
+                {"success": False, "message": str(e)},
+                status_code=500,
+            )
+
+    return handle_command
 
 
 def create_command_routes(
-    app: web.Application,
     state_service: DeviceStateService,
     subscription_manager: SubscriptionManager,
-) -> None:
-    """Register command routes.
+) -> list[Route]:
+    """Create command routes.
 
     Args:
-        app: aiohttp application
         state_service: Device state service
         subscription_manager: Subscription manager
-    """
-    app["state_service"] = state_service
-    app["subscription_manager"] = subscription_manager
 
-    app.router.add_post("/command", handle_command)
+    Returns:
+        List of Starlette routes
+    """
+    handler = create_command_handler(state_service, subscription_manager)
+    return [Route("/command", handler, methods=["POST"])]

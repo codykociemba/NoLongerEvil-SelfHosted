@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-from aiohttp import web
+from starlette.requests import Request
+from starlette.responses import HTMLResponse
+from starlette.routing import Route
 
 from nolongerevil.lib.logger import get_logger
 
@@ -13,7 +15,7 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 INDEX_TEMPLATE = TEMPLATE_DIR / "index.html"
 
 
-async def handle_webui(request: web.Request) -> web.Response:
+async def handle_webui(request: Request) -> HTMLResponse:
     """Handle GET / - serve the web UI.
 
     Reads X-Ingress-Path header for Home Assistant ingress support
@@ -25,10 +27,13 @@ async def handle_webui(request: web.Request) -> web.Response:
     # Inject the ingress path via data attribute on body tag
     html = html.replace("<body>", f'<body data-ingress-path="{ingress_path}">')
 
-    return web.Response(text=html, content_type="text/html")
+    return HTMLResponse(html)
 
 
-def create_webui_routes(app: web.Application) -> None:
-    """Register web UI routes."""
-    app.router.add_get("/", handle_webui)
-    logger.info("Web UI routes registered")
+def create_webui_routes() -> list[Route]:
+    """Create web UI routes.
+
+    Returns:
+        List of Starlette routes
+    """
+    return [Route("/", handle_webui, methods=["GET"])]

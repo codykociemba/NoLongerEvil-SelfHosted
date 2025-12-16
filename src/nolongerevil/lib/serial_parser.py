@@ -2,8 +2,10 @@
 
 import base64
 import re
+from typing import TYPE_CHECKING
 
-from aiohttp import web
+if TYPE_CHECKING:
+    from starlette.requests import Request
 
 # Minimum length for a valid Nest device serial
 MIN_SERIAL_LENGTH = 10
@@ -73,11 +75,11 @@ def extract_serial_from_basic_auth(auth_header: str | None) -> str | None:
         return None
 
 
-def extract_serial_from_custom_header(request: web.Request) -> str | None:
+def extract_serial_from_custom_header(request: "Request") -> str | None:
     """Extract serial from custom X-NL-Device-Serial header.
 
     Args:
-        request: aiohttp web request
+        request: Starlette request
 
     Returns:
         Sanitized serial or None if not found
@@ -88,8 +90,8 @@ def extract_serial_from_custom_header(request: web.Request) -> str | None:
     return sanitize_serial(serial_header)
 
 
-def extract_serial_from_request(request: web.Request) -> str | None:
-    """Extract device serial from an aiohttp request.
+def extract_serial_from_request(request: "Request") -> str | None:
+    """Extract device serial from a Starlette request.
 
     Tries multiple sources in order:
     1. Authorization header (Basic Auth username)
@@ -98,7 +100,7 @@ def extract_serial_from_request(request: web.Request) -> str | None:
     4. URL path parameter 'serial'
 
     Args:
-        request: aiohttp web request
+        request: Starlette request
 
     Returns:
         Sanitized serial or None if not found
@@ -115,25 +117,25 @@ def extract_serial_from_request(request: web.Request) -> str | None:
         return serial
 
     # Try query parameter
-    serial = sanitize_serial(request.query.get("serial"))
+    serial = sanitize_serial(request.query_params.get("serial"))
     if serial:
         return serial
 
     # Try URL path parameter
-    serial = sanitize_serial(request.match_info.get("serial"))
+    serial = sanitize_serial(request.path_params.get("serial"))
     if serial:
         return serial
 
     return None
 
 
-def extract_weave_device_id(request: web.Request) -> str | None:
+def extract_weave_device_id(request: "Request") -> str | None:
     """Extract Weave device ID from request header.
 
     Nest devices send their Weave device ID in the x-nl-weave-device-id header.
 
     Args:
-        request: aiohttp web request
+        request: Starlette request
 
     Returns:
         Weave device ID or None if not found

@@ -1,9 +1,12 @@
 """URL normalizer middleware for legacy Nest firmware compatibility."""
 
 import re
-from collections.abc import Awaitable, Callable
+from typing import Callable
 
-from aiohttp import web
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.types import ASGIApp
 
 from nolongerevil.lib.logger import get_logger
 
@@ -49,47 +52,40 @@ def normalize_url(path: str) -> str:
     return path
 
 
-@web.middleware
-async def url_normalizer_middleware(
-    request: web.Request,
-    handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
-) -> web.StreamResponse:
+class URLNormalizerMiddleware(BaseHTTPMiddleware):
     """Middleware to normalize legacy Nest URLs.
 
     Maps legacy endpoint patterns to the /nest prefix for
     backward compatibility with older Nest firmware.
     """
-    original_path = request.path
-    normalized_path = normalize_url(original_path)
 
-    if normalized_path != original_path:
-        # Re-resolve the handler for the normalized path
-        # The handler passed in was resolved for the original URL
-        new_url = normalized_path + ("?" + request.query_string if request.query_string else "")
-        match_info = await request.app.router.resolve(request.clone(rel_url=new_url))
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
 
-        if isinstance(match_info, web.UrlMappingMatchInfo):
-            # Update the request's match_info and call the new handler
-            request = request.clone(rel_url=new_url)
-            request._match_info = match_info
-            return await match_info.handler(request)
-        else:
-            # No match found, fall through to original handler (will 404)
-            logger.warning(f"No route found for normalized path: {normalized_path}")
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        """Normalize the URL path and forward the request."""
+        original_path = request.url.path
+        normalized_path = normalize_url(original_path)
 
-    return await handler(request)
+        if normalized_path != original_path:
+            # Create new scope with normalized path
+            scope = request.scope.copy()
+            scope["path"] = normalized_path
 
+            # Update raw_path if present
+            if "raw_path" in scope:
+                scope["raw_path"] = normalized_path.encode("utf-8")
 
-_MiddlewareType = Callable[
-    [web.Request, Callable[[web.Request], Awaitable[web.StreamResponse]]],
-    Awaitable[web.StreamResponse],
-]
+            # Create new request with modified scope
+            request = Request(scope, request.receive, request._send)
+
+        return await call_next(request)
 
 
-def create_url_normalizer_middleware() -> _MiddlewareType:
-    """Create the URL normalizer middleware.
+def create_url_normalizer_middleware() -> type[BaseHTTPMiddleware]:
+    """Create the URL normalizer middleware class.
 
     Returns:
-        Middleware function
+        Middleware class
     """
-    return url_normalizer_middleware
+    return URLNormalizerMiddleware

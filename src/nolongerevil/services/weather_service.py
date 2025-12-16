@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-import aiohttp
+import httpx
 
 from nolongerevil.config import settings
 from nolongerevil.lib.logger import get_logger
@@ -29,28 +29,27 @@ class WeatherService:
             storage: Storage backend for caching
         """
         self._storage = storage
-        self._session: aiohttp.ClientSession | None = None
+        self._client: httpx.AsyncClient | None = None
 
     async def initialize(self) -> None:
-        """Initialize the HTTP session.
+        """Initialize the HTTP client.
 
         Note: SSL verification is disabled for weather.nest.com because it uses
         a private certificate authority (Nest Private Server Certificate Authority)
         that is not in public trust stores.
         """
         # Disable SSL verification for Nest's private CA
-        connector = aiohttp.TCPConnector(ssl=False)
-        self._session = aiohttp.ClientSession(
-            connector=connector,
-            timeout=aiohttp.ClientTimeout(total=30),
+        self._client = httpx.AsyncClient(
+            verify=False,
+            timeout=httpx.Timeout(30.0),
         )
         logger.info("Weather service initialized (SSL verification disabled for Nest private CA)")
 
     async def close(self) -> None:
-        """Close the HTTP session."""
-        if self._session:
-            await self._session.close()
-            self._session = None
+        """Close the HTTP client."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
             logger.info("Weather service closed")
 
     def _is_cache_valid(self, weather: WeatherData) -> bool:
@@ -125,7 +124,7 @@ class WeatherService:
         Returns:
             Weather data dictionary or None on error
         """
-        if not self._session:
+        if not self._client:
             raise RuntimeError("Weather service not initialized")
 
         url = NEST_WEATHER_URL
@@ -135,13 +134,13 @@ class WeatherService:
         logger.debug(f"Fetching weather from: {url}")
 
         try:
-            async with self._session.get(url) as response:
-                if response.status == 200:
-                    result: dict[str, Any] = await response.json()
-                    return result
-                else:
-                    logger.warning(f"Weather API returned status {response.status} for URL: {url}")
-                    return None
-        except aiohttp.ClientError as e:
+            response = await self._client.get(url)
+            if response.status_code == 200:
+                result: dict[str, Any] = response.json()
+                return result
+            else:
+                logger.warning(f"Weather API returned status {response.status_code} for URL: {url}")
+                return None
+        except httpx.RequestError as e:
             logger.error(f"Weather API request failed: {e}")
             return None

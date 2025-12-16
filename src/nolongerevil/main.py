@@ -3,11 +3,16 @@
 import asyncio
 import signal
 import ssl
-from collections.abc import Awaitable, Callable
 from datetime import datetime
 from pathlib import Path
 
-from aiohttp import web
+import uvicorn
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from nolongerevil.config import settings
 from nolongerevil.integrations.integration_manager import IntegrationManager
@@ -16,8 +21,8 @@ from nolongerevil.lib.types import UserInfo
 from nolongerevil.middleware.debug_logger import create_debug_logger_middleware
 from nolongerevil.middleware.device_heartbeat import create_device_heartbeat_middleware
 from nolongerevil.middleware.url_normalizer import create_url_normalizer_middleware
-from nolongerevil.routes.control import setup_control_routes
-from nolongerevil.routes.nest import setup_nest_routes
+from nolongerevil.routes.control import get_control_routes
+from nolongerevil.routes.nest import get_nest_routes
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
 from nolongerevil.services.sqlmodel_service import SQLModelService
@@ -110,7 +115,7 @@ def create_proxy_app(
     subscription_manager: SubscriptionManager,
     weather_service: WeatherService,
     device_availability: DeviceAvailability,
-) -> web.Application:
+) -> Starlette:
     """Create the proxy (device) API application.
 
     This application handles Nest protocol communication:
@@ -126,24 +131,33 @@ def create_proxy_app(
         device_availability: Device availability service
 
     Returns:
-        aiohttp Application
+        Starlette Application
     """
-    app = web.Application(
-        middlewares=[
-            create_url_normalizer_middleware(),  # type: ignore[list-item] # Must be first - before body reading
-            create_device_heartbeat_middleware(device_availability),  # type: ignore[list-item]
-            create_debug_logger_middleware(),  # type: ignore[list-item]
-        ]
-    )
+    # Build middleware list
+    middleware: list[Middleware] = []
 
-    # Set up Nest routes
-    setup_nest_routes(
-        app,
+    # Add URL normalizer middleware
+    url_normalizer_cls = create_url_normalizer_middleware()
+    middleware.append(Middleware(url_normalizer_cls))
+
+    # Add device heartbeat middleware
+    heartbeat_cls = create_device_heartbeat_middleware(device_availability)
+    middleware.append(Middleware(heartbeat_cls))
+
+    # Add debug logger middleware if enabled
+    debug_logger_cls = create_debug_logger_middleware()
+    if debug_logger_cls:
+        middleware.append(Middleware(debug_logger_cls))
+
+    # Get Nest routes
+    routes = get_nest_routes(
         state_service,
         subscription_manager,
         weather_service,
         device_availability,
     )
+
+    app = Starlette(routes=routes, middleware=middleware)
 
     logger.info("Proxy (device) API application created")
     return app
@@ -154,7 +168,7 @@ def create_control_app(
     subscription_manager: SubscriptionManager,
     device_availability: DeviceAvailability,
     storage: SQLModelService | None = None,
-) -> web.Application:
+) -> Starlette:
     """Create the control API application.
 
     This application handles dashboard/automation communication:
@@ -170,46 +184,37 @@ def create_control_app(
         storage: SQLModel storage service (optional, for registration routes)
 
     Returns:
-        aiohttp Application
+        Starlette Application
     """
+    # Build middleware list - CORS for control API
+    middleware: list[Middleware] = [
+        Middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization", "X-API-Key"],
+        ),
+    ]
 
-    # CORS middleware for control API
-    @web.middleware
-    async def cors_middleware(
-        request: web.Request,
-        handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
-    ) -> web.StreamResponse:
-        if request.method == "OPTIONS":
-            response: web.StreamResponse = web.Response()
-        else:
-            response = await handler(request)
+    # Add debug logger middleware if enabled
+    debug_logger_cls = create_debug_logger_middleware()
+    if debug_logger_cls:
+        middleware.append(Middleware(debug_logger_cls))
 
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
-        return response
+    # Health check endpoint
+    async def health_check(_request: Request) -> JSONResponse:
+        return JSONResponse({"status": "ok"})
 
-    app = web.Application(
-        middlewares=[
-            create_debug_logger_middleware(),  # type: ignore[list-item]
-            cors_middleware,
-        ]
-    )
-
-    # Set up control routes
-    setup_control_routes(
-        app,
+    # Get control routes and add health check
+    routes = get_control_routes(
         state_service,
         subscription_manager,
         device_availability,
         storage,
     )
+    routes.append(Route("/health", health_check, methods=["GET"]))
 
-    # Health check endpoint
-    async def health_check(_request: web.Request) -> web.Response:
-        return web.json_response({"status": "ok"})
-
-    app.router.add_get("/health", health_check)
+    app = Starlette(routes=routes, middleware=middleware)
 
     logger.info("Control API application created")
     return app
@@ -293,53 +298,56 @@ async def run_server() -> None:
     # Get SSL context
     ssl_context = get_ssl_context()
 
-    # Create runners
-    proxy_runner = web.AppRunner(proxy_app)
-    control_runner = web.AppRunner(control_app)
-
-    await proxy_runner.setup()
-    await control_runner.setup()
-
-    # Start servers
-    proxy_site = web.TCPSite(
-        proxy_runner,
-        settings.proxy_host,
-        settings.proxy_port,
-        ssl_context=ssl_context,
+    # Configure uvicorn servers
+    proxy_config = uvicorn.Config(
+        proxy_app,
+        host=settings.proxy_host,
+        port=settings.proxy_port,
+        ssl_keyfile=str(Path(settings.cert_dir) / "privkey.pem") if ssl_context else None,
+        ssl_certfile=str(Path(settings.cert_dir) / "fullchain.pem") if ssl_context else None,
+        log_level="warning",  # Reduce uvicorn logging noise
     )
-    control_site = web.TCPSite(
-        control_runner,
-        settings.control_host,
-        settings.control_port,
+    control_config = uvicorn.Config(
+        control_app,
+        host=settings.control_host,
+        port=settings.control_port,
+        log_level="warning",
     )
 
-    await proxy_site.start()
-    await control_site.start()
+    proxy_server = uvicorn.Server(proxy_config)
+    control_server = uvicorn.Server(control_config)
 
-    logger.info(f"Proxy (device) API started on {settings.proxy_host}:{settings.proxy_port}")
-    logger.info(f"Control API started on {settings.control_host}:{settings.control_port}")
-
-    # Wait for shutdown signal
+    # Track shutdown state
     shutdown_event = asyncio.Event()
 
     def signal_handler() -> None:
         logger.info("Shutdown signal received")
         shutdown_event.set()
+        # Signal uvicorn to shutdown
+        proxy_server.should_exit = True
+        control_server.should_exit = True
 
     loop = asyncio.get_event_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, signal_handler)
 
-    await shutdown_event.wait()
+    logger.info(f"Proxy (device) API starting on {settings.proxy_host}:{settings.proxy_port}")
+    logger.info(f"Control API starting on {settings.control_host}:{settings.control_port}")
+
+    # Run both servers concurrently
+    try:
+        await asyncio.gather(
+            proxy_server.serve(),
+            control_server.serve(),
+        )
+    except asyncio.CancelledError:
+        pass
 
     # Graceful shutdown
     logger.info("Starting graceful shutdown...")
 
     await integration_manager.stop()
     await device_availability.stop()
-
-    await proxy_runner.cleanup()
-    await control_runner.cleanup()
 
     await weather_service.close()
     await state_service.close()

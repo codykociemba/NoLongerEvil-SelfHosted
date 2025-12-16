@@ -1,6 +1,6 @@
 """Control API routes module."""
 
-from aiohttp import web
+from starlette.routing import Route
 
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
@@ -13,32 +13,36 @@ from .status import create_status_routes
 from .webui import create_webui_routes
 
 
-def setup_control_routes(
-    app: web.Application,
+def get_control_routes(
     state_service: DeviceStateService,
     subscription_manager: SubscriptionManager,
     device_availability: DeviceAvailability,
     storage: SQLModelService | None = None,
-) -> None:
-    """Set up all Control API routes.
+) -> list[Route]:
+    """Get all Control API routes.
 
     Args:
-        app: aiohttp application
         state_service: Device state service
         subscription_manager: Subscription manager
         device_availability: Device availability service
         storage: SQLModel storage service (optional, for registration routes)
+
+    Returns:
+        List of all Control routes
     """
-    create_command_routes(app, state_service, subscription_manager)
-    create_status_routes(app, state_service, subscription_manager, device_availability)
-    create_webui_routes(app)
+    routes: list[Route] = []
+    routes.extend(create_command_routes(state_service, subscription_manager))
+    routes.extend(create_status_routes(state_service, subscription_manager, device_availability))
+    routes.extend(create_webui_routes())
 
     if storage:
-        create_registration_routes(app, storage)
+        routes.extend(create_registration_routes(storage))
+
+    return routes
 
 
 __all__ = [
-    "setup_control_routes",
+    "get_control_routes",
     "create_command_routes",
     "create_registration_routes",
     "create_status_routes",
