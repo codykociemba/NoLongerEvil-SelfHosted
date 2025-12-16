@@ -1,8 +1,9 @@
 """Tests for weather service."""
 
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from nolongerevil.lib.types import WeatherData
@@ -31,25 +32,25 @@ class TestWeatherServiceInit:
         """Test service initialization."""
         service = WeatherService(mock_storage)
         assert service._storage is mock_storage
-        assert service._session is None
+        assert service._client is None
 
 
 class TestWeatherServiceInitialize:
     """Tests for initialize method."""
 
     @pytest.mark.asyncio
-    async def test_creates_session(self, weather_service):
-        """Test that initialize creates a session."""
+    async def test_creates_client(self, weather_service):
+        """Test that initialize creates a client."""
         await weather_service.initialize()
-        assert weather_service._session is not None
+        assert weather_service._client is not None
         await weather_service.close()
 
     @pytest.mark.asyncio
-    async def test_session_has_timeout(self, weather_service):
-        """Test that session has timeout configured."""
+    async def test_client_has_timeout(self, weather_service):
+        """Test that client has timeout configured."""
         await weather_service.initialize()
-        # Session is created with timeout
-        assert weather_service._session is not None
+        # Client is created with timeout
+        assert weather_service._client is not None
         await weather_service.close()
 
 
@@ -57,17 +58,17 @@ class TestWeatherServiceClose:
     """Tests for close method."""
 
     @pytest.mark.asyncio
-    async def test_closes_session(self, weather_service):
-        """Test that close closes the session."""
+    async def test_closes_client(self, weather_service):
+        """Test that close closes the client."""
         await weather_service.initialize()
         await weather_service.close()
-        assert weather_service._session is None
+        assert weather_service._client is None
 
     @pytest.mark.asyncio
     async def test_close_without_init_is_safe(self, weather_service):
         """Test that close without init doesn't raise."""
         await weather_service.close()
-        assert weather_service._session is None
+        assert weather_service._client is None
 
 
 class TestCacheValidity:
@@ -201,15 +202,15 @@ class TestFetchWeather:
         """Test that query string is appended to URL."""
         await weather_service.initialize()
 
-        with patch.object(weather_service._session, "get") as mock_get:
-            mock_response = AsyncMock()
-            mock_response.status = 200
-            mock_response.json = AsyncMock(return_value={"temp": 20})
-            mock_get.return_value.__aenter__.return_value = mock_response
+        # Mock httpx response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"temp": 20}
 
+        with patch.object(weather_service._client, "get", new=AsyncMock(return_value=mock_response)):
             await weather_service._fetch_weather("postal_code=12345&country=US")
 
-            call_args = mock_get.call_args[0][0]
+            call_args = weather_service._client.get.call_args[0][0]
             assert "postal_code=12345&country=US" in call_args
 
         await weather_service.close()
@@ -219,11 +220,11 @@ class TestFetchWeather:
         """Test that None is returned on non-200 status."""
         await weather_service.initialize()
 
-        with patch.object(weather_service._session, "get") as mock_get:
-            mock_response = AsyncMock()
-            mock_response.status = 404
-            mock_get.return_value.__aenter__.return_value = mock_response
+        # Mock httpx response
+        mock_response = MagicMock()
+        mock_response.status_code = 404
 
+        with patch.object(weather_service._client, "get", new=AsyncMock(return_value=mock_response)):
             result = await weather_service._fetch_weather(None)
             assert result is None
 
