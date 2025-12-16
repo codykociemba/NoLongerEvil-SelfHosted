@@ -99,11 +99,28 @@ class SubscriptionManager:
 
             return True
 
-    async def remove_chunked_subscription(self, serial: str, session_id: str) -> None:
-        """Remove a chunked subscription."""
+    async def remove_chunked_subscription(
+        self, serial: str, session_id: str, response: web.StreamResponse | None = None
+    ) -> None:
+        """Remove a chunked subscription.
+
+        Args:
+            serial: Device serial number
+            session_id: Session identifier
+            response: If provided, only remove if this response matches the stored one.
+                     This prevents race conditions when session IDs are reused.
+        """
         async with self._lock:
             if serial in self._chunked_subscriptions:
                 if session_id in self._chunked_subscriptions[serial]:
+                    # If response provided, only remove if it matches (prevents race condition)
+                    if response is not None:
+                        stored_sub = self._chunked_subscriptions[serial][session_id]
+                        if stored_sub.response is not response:
+                            logger.debug(
+                                f"Skipping removal of {session_id} - response mismatch (reused session)"
+                            )
+                            return
                     del self._chunked_subscriptions[serial][session_id]
                     logger.debug(f"Removed chunked subscription {session_id} for {serial}")
 
@@ -148,7 +165,7 @@ class SubscriptionManager:
                     logger.debug(f"Notified chunked subscriber {session_id} for {serial}")
 
                 except Exception as e:
-                    logger.error(f"Failed to notify chunked subscriber {session_id}: {e}")
+                    logger.debug(f"Failed to notify chunked subscriber {session_id}: {e}")
                     sessions_to_remove.append(session_id)
 
             # Clean up notified/closed subscriptions

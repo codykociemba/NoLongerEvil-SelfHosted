@@ -332,7 +332,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
         except (asyncio.CancelledError, ConnectionResetError):
             pass
         finally:
-            await subscription_manager.remove_chunked_subscription(serial, session)
+            await subscription_manager.remove_chunked_subscription(serial, session, response)
 
         return response
     else:
