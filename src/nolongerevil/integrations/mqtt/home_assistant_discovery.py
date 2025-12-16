@@ -112,9 +112,7 @@ def build_climate_discovery_payload(
         )
     else:
         # Target temperature (single setpoint for heat/cool/off modes)
-        payload["temperature_command_topic"] = (
-            f"{topic_prefix}/{serial}/ha/target_temperature/set"
-        )
+        payload["temperature_command_topic"] = f"{topic_prefix}/{serial}/ha/target_temperature/set"
         payload["temperature_state_topic"] = f"{topic_prefix}/{serial}/ha/target_temperature"
 
     return payload
