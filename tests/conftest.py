@@ -6,9 +6,13 @@ import threading
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 
+import httpx
 import pytest
 import pytest_asyncio
+from starlette.applications import Starlette
 
+from nolongerevil.routes.control import get_control_routes
+from nolongerevil.routes.nest import get_nest_routes
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
 from nolongerevil.services.sqlmodel_service import SQLModelService
@@ -68,6 +72,71 @@ def device_availability(
 ) -> DeviceAvailability:
     """Create a DeviceAvailability service."""
     return DeviceAvailability(subscription_manager)
+
+
+@pytest_asyncio.fixture
+async def control_app(
+    state_service: DeviceStateService,
+    subscription_manager: SubscriptionManager,
+    device_availability: DeviceAvailability,
+    sqlmodel_service: SQLModelService,
+) -> Starlette:
+    """Create the control API application for testing."""
+    routes = get_control_routes(
+        state_service,
+        subscription_manager,
+        device_availability,
+        sqlmodel_service,
+    )
+    app = Starlette(routes=routes)
+    return app
+
+
+@pytest_asyncio.fixture
+async def nest_app(
+    state_service: DeviceStateService,
+    subscription_manager: SubscriptionManager,
+    weather_service: WeatherService,
+    device_availability: DeviceAvailability,
+) -> Starlette:
+    """Create the nest API application for testing."""
+    routes = get_nest_routes(
+        state_service,
+        subscription_manager,
+        weather_service,
+        device_availability,
+    )
+    app = Starlette(routes=routes)
+    # Store services for test access
+    app.state.weather_service = weather_service
+    app.state.state_service = state_service
+    return app
+
+
+@pytest_asyncio.fixture
+async def control_client(
+    control_app: Starlette,
+) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Create a test client for the control API."""
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=control_app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def nest_client(
+    nest_app: Starlette,
+) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Create a test client for the nest API."""
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=nest_app),
+        base_url="http://test",
+    ) as client:
+        # Store app reference for test access
+        client._app = nest_app  # type: ignore[attr-defined]
+        yield client
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
