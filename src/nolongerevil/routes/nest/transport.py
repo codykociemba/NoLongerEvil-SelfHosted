@@ -123,10 +123,6 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
 
     state_service: DeviceStateService = request.app["state_service"]
     subscription_manager: SubscriptionManager = request.app["subscription_manager"]
-    device_availability: DeviceAvailability = request.app["device_availability"]
-
-    # Mark device as seen
-    await device_availability.mark_device_seen(serial)
 
     response_objects: list[DeviceObject] = []
     # Track which client objects we processed (those with valid object_key)
@@ -364,10 +360,6 @@ async def handle_transport_put(request: web.Request) -> web.Response:
 
     state_service: DeviceStateService = request.app["state_service"]
     subscription_manager: SubscriptionManager = request.app["subscription_manager"]
-    device_availability: DeviceAvailability = request.app["device_availability"]
-
-    # Mark device as seen
-    await device_availability.mark_device_seen(serial)
 
     weave_device_id = extract_weave_device_id(request)
     response_objects: list[dict[str, Any]] = []

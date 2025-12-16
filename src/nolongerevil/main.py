@@ -14,6 +14,7 @@ from nolongerevil.integrations.integration_manager import IntegrationManager
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.types import UserInfo
 from nolongerevil.middleware.debug_logger import create_debug_logger_middleware
+from nolongerevil.middleware.device_heartbeat import create_device_heartbeat_middleware
 from nolongerevil.middleware.url_normalizer import create_url_normalizer_middleware
 from nolongerevil.routes.control import setup_control_routes
 from nolongerevil.routes.nest import setup_nest_routes
@@ -130,6 +131,7 @@ def create_proxy_app(
     app = web.Application(
         middlewares=[
             create_url_normalizer_middleware(),  # type: ignore[list-item] # Must be first - before body reading
+            create_device_heartbeat_middleware(device_availability),  # type: ignore[list-item]
             create_debug_logger_middleware(),  # type: ignore[list-item]
         ]
     )
