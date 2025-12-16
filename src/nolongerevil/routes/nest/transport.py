@@ -153,7 +153,19 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
         if is_update:
             # Device is sending us an update
             existing_value = server_obj.value if server_obj else {}
-            merged_value = {**existing_value, **value}
+
+            # For schedule objects, if device sends a different schedule, overwrite
+            # instead of merging to prevent schedule corruption
+            if object_key.startswith("schedule."):
+                if existing_value != value:
+                    logger.debug(
+                        f"Schedule changed from device for {serial}, overwriting server state"
+                    )
+                    merged_value = value  # Use device's schedule as-is
+                else:
+                    merged_value = existing_value  # No change, keep existing
+            else:
+                merged_value = {**existing_value, **value}
 
             # Store weave_device_id if provided
             if weave_device_id:
@@ -195,7 +207,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                 if values_equal
                 else (server_obj.object_revision if server_obj else 0) + 1
             )
-            new_timestamp = int(time.time() * 1000)
+            new_timestamp = int(time.time())  # Nest protocol uses seconds, not ms
 
             # Save the update
             server_obj = await state_service.upsert_object(
@@ -394,7 +406,7 @@ async def handle_transport_put(request: web.Request) -> web.Response:
             if values_changed
             else (server_obj.object_revision if server_obj else 0)
         )
-        new_timestamp = int(time.time() * 1000)
+        new_timestamp = int(time.time())  # Nest protocol uses seconds, not ms
 
         # Save update
         new_obj = DeviceObject(

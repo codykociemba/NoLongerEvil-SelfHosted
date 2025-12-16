@@ -50,16 +50,22 @@ async def set_temperature(
 
     if isinstance(value, dict):
         # Range mode (heat-cool)
-        values = {}
+        values: dict[str, Any] = {}
         if "high" in value:
-            values["target_temperature_high"] = value["high"]
+            values["target_temperature_high"] = float(value["high"])
         if "low" in value:
-            values["target_temperature_low"] = value["low"]
+            values["target_temperature_low"] = float(value["low"])
     else:
         # Single temperature
         values = {"target_temperature": float(value)}
 
-    return validate_and_clamp_temperatures(values, bounds, serial)
+    # Validate and clamp
+    result = validate_and_clamp_temperatures(values, bounds, serial)
+
+    # Always set target_change_pending for temperature changes
+    result["target_change_pending"] = True
+
+    return result
 
 
 async def set_mode(
@@ -84,7 +90,50 @@ async def set_mode(
     except ValueError:
         target_mode = value  # Pass through unknown values
 
-    return {"target_temperature_type": target_mode}
+    result: dict[str, Any] = {"target_temperature_type": target_mode}
+
+    # Clear opposing HVAC states when switching modes to prevent conflicts
+    if target_mode == "heat":
+        # Clear cooling states when switching to heat
+        result.update(
+            {
+                "hvac_ac_state": False,
+                "hvac_cool_x2_state": False,
+                "hvac_cool_x3_state": False,
+                "hvac_fan_state": False,
+            }
+        )
+    elif target_mode == "cool":
+        # Clear heating states when switching to cool
+        result.update(
+            {
+                "hvac_heater_state": False,
+                "hvac_heat_x2_state": False,
+                "hvac_heat_x3_state": False,
+                "hvac_aux_heater_state": False,
+                "hvac_alt_heat_state": False,
+                "hvac_alt_heat_x2_state": False,
+                "hvac_fan_state": False,
+            }
+        )
+    elif target_mode == "range":
+        # Clear all HVAC states when switching to range - let thermostat decide
+        result.update(
+            {
+                "hvac_ac_state": False,
+                "hvac_cool_x2_state": False,
+                "hvac_cool_x3_state": False,
+                "hvac_heater_state": False,
+                "hvac_heat_x2_state": False,
+                "hvac_heat_x3_state": False,
+                "hvac_aux_heater_state": False,
+                "hvac_alt_heat_state": False,
+                "hvac_alt_heat_x2_state": False,
+                "hvac_fan_state": False,
+            }
+        )
+
+    return result
 
 
 async def set_away(
@@ -170,6 +219,67 @@ async def set_eco_temperatures(
     return validate_and_clamp_temperatures(values, bounds, serial)
 
 
+async def set_eco(
+    _state_service: DeviceStateService,
+    _serial: str,
+    value: Any,
+) -> dict[str, Any]:
+    """Toggle eco mode on/off.
+
+    Args:
+        _state_service: Device state service (unused)
+        _serial: Device serial (unused)
+        value: True/"true" to enable eco mode, False/"false" to disable
+
+    Returns:
+        Updated values
+    """
+    eco_enabled = value is True or str(value).lower() == "true"
+    now_sec = int(time.time())
+
+    return {
+        "eco": {
+            "mode": "manual-eco" if eco_enabled else "schedule",
+            "touched_by": 1,
+            "mode_update_timestamp": now_sec,
+        },
+        "leaf": eco_enabled,
+        "touched_by": 1,
+        "touched_when": now_sec,
+        "touched_tzo": -time.timezone,
+        "touched_id": 1,
+    }
+
+
+async def set_fan_timer(
+    _state_service: DeviceStateService,
+    _serial: str,
+    value: int,
+) -> dict[str, Any]:
+    """Set fan timer with specific duration.
+
+    This command updates both shared and device objects for proper fan control.
+
+    Args:
+        _state_service: Device state service (unused)
+        _serial: Device serial (unused)
+        value: Duration in seconds
+
+    Returns:
+        Updated values for device object
+    """
+    duration = int(value)
+    timeout = int(time.time()) + duration
+
+    return {
+        "fan_control_state": True,
+        "fan_mode": "auto",
+        "fan_timer_duration": duration,
+        "fan_current_speed": "stage1",
+        "fan_timer_timeout": timeout,
+    }
+
+
 # Command registry
 COMMAND_HANDLERS: dict[str, CommandHandler] = {
     "set_temperature": set_temperature,
@@ -177,6 +287,8 @@ COMMAND_HANDLERS: dict[str, CommandHandler] = {
     "set_away": set_away,
     "set_fan": set_fan,
     "set_eco_temperatures": set_eco_temperatures,
+    "set_eco": set_eco,
+    "set_fan_timer": set_fan_timer,
 }
 
 
@@ -256,8 +368,22 @@ async def handle_command(request: web.Request) -> web.Response:
             timestamp=now,
         )
 
+        updated_objects = [updated_obj]
+
+        # Handle commands that need to update multiple objects
+        if command == "set_fan_timer":
+            # Fan timer also needs to update shared object with hvac_fan_state
+            shared_obj = await state_service.merge_object_values(
+                serial=serial,
+                object_key=f"shared.{serial}",
+                values={"hvac_fan_state": True},
+                revision=now,
+                timestamp=now,
+            )
+            updated_objects.append(shared_obj)
+
         # Notify subscribers
-        await subscription_manager.notify_subscribers(serial, [updated_obj])
+        await subscription_manager.notify_subscribers(serial, updated_objects)
 
         logger.info(f"Command {command} executed for device {serial}")
 
