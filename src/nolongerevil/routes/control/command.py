@@ -6,6 +6,7 @@ from typing import Any
 
 from aiohttp import web
 
+from nolongerevil.lib.consts import API_MODE_TO_NEST, ApiMode
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.services.device_state_service import DeviceStateService
 from nolongerevil.services.subscription_manager import SubscriptionManager
@@ -76,17 +77,12 @@ async def set_mode(
     Returns:
         Updated values
     """
-    mode_map = {
-        "off": "off",
-        "heat": "heat",
-        "cool": "cool",
-        "heat-cool": "range",
-        "range": "range",
-        "auto": "range",
-        "eco": "eco",
-    }
-
-    target_mode = mode_map.get(value.lower(), value)
+    # Convert input string to ApiMode, then lookup NestMode
+    try:
+        api_mode = ApiMode(value.lower())
+        target_mode = API_MODE_TO_NEST.get(api_mode, value)
+    except ValueError:
+        target_mode = value  # Pass through unknown values
 
     return {"target_temperature_type": target_mode}
 

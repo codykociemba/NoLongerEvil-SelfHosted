@@ -3,6 +3,16 @@
 import time
 from typing import Any
 
+from nolongerevil.lib.consts import (
+    HA_MODE_TO_NEST,
+    NEST_MODE_TO_HA,
+    HaAction,
+    HaFanMode,
+    HaMode,
+    HaPreset,
+    NestMode,
+)
+
 # where_id to human-readable room name mapping
 # Nest uses UUID-based where_id values
 WHERE_ID_NAMES: dict[str, str] = {
@@ -77,7 +87,7 @@ def fahrenheit_to_celsius(fahrenheit: float) -> float:
     return (fahrenheit - 32) * 5 / 9
 
 
-def nest_mode_to_ha(nest_mode: str | None) -> str:
+def nest_mode_to_ha(nest_mode: str | NestMode | None) -> HaMode:
     """Convert Nest mode to Home Assistant mode.
 
     Args:
@@ -87,40 +97,45 @@ def nest_mode_to_ha(nest_mode: str | None) -> str:
         Home Assistant HVAC mode
     """
     if not nest_mode:
-        return "off"
+        return HaMode.OFF
 
-    mode_map = {
-        "off": "off",
-        "heat": "heat",
-        "cool": "cool",
-        "range": "heat_cool",
-        "heat-cool": "heat_cool",
-    }
-    return mode_map.get(nest_mode, "off")
+    # Handle string aliases before enum conversion
+    if isinstance(nest_mode, str):
+        # "heat-cool" is an alias for "range"
+        if nest_mode == "heat-cool":
+            nest_mode = NestMode.RANGE
+        else:
+            try:
+                nest_mode = NestMode(nest_mode)
+            except ValueError:
+                return HaMode.OFF
+
+    return NEST_MODE_TO_HA.get(nest_mode, HaMode.OFF)
 
 
-def ha_mode_to_nest(ha_mode: str | None) -> str:
+def ha_mode_to_nest(ha_mode: str | HaMode | None) -> NestMode:
     """Convert Home Assistant mode to Nest mode.
 
     Args:
-        ha_mode: Home Assistant HVAC mode
+        ha_mode: Home Assistant HVAC mode (string or HaMode enum)
 
     Returns:
         Nest temperature type
     """
     if not ha_mode:
-        return "off"
+        return NestMode.OFF
 
-    mode_map = {
-        "off": "off",
-        "heat": "heat",
-        "cool": "cool",
-        "heat_cool": "range",
-    }
-    return mode_map.get(ha_mode, "off")
+    # Convert string to HaMode if needed
+    if isinstance(ha_mode, str):
+        try:
+            ha_mode = HaMode(ha_mode)
+        except ValueError:
+            return NestMode.OFF
+
+    return HA_MODE_TO_NEST.get(ha_mode, NestMode.OFF)
 
 
-def derive_hvac_action(device_values: dict[str, Any], shared_values: dict[str, Any]) -> str:
+def derive_hvac_action(device_values: dict[str, Any], shared_values: dict[str, Any]) -> HaAction:
     """Derive current HVAC action from device state.
 
     IMPORTANT: HVAC state fields (hvac_heater_state, hvac_ac_state, etc.)
@@ -131,13 +146,13 @@ def derive_hvac_action(device_values: dict[str, Any], shared_values: dict[str, A
         shared_values: Shared object values
 
     Returns:
-        HVAC action ("heating", "cooling", "fan", "idle", "off")
+        HVAC action
     """
     # Mode comes from shared object
-    mode = shared_values.get("target_temperature_type", "off")
+    mode = shared_values.get("target_temperature_type", NestMode.OFF)
 
-    if mode == "off":
-        return "off"
+    if mode == NestMode.OFF:
+        return HaAction.OFF
 
     # Check heating states (from shared object)
     is_heating = (
@@ -149,7 +164,7 @@ def derive_hvac_action(device_values: dict[str, Any], shared_values: dict[str, A
     )
 
     if is_heating:
-        return "heating"
+        return HaAction.HEATING
 
     # Check cooling states (from shared object)
     is_cooling = (
@@ -159,7 +174,7 @@ def derive_hvac_action(device_values: dict[str, Any], shared_values: dict[str, A
     )
 
     if is_cooling:
-        return "cooling"
+        return HaAction.COOLING
 
     # Check fan running (use commanded state, not physical state)
     now_seconds = int(time.time())
@@ -168,12 +183,12 @@ def derive_hvac_action(device_values: dict[str, Any], shared_values: dict[str, A
     is_fan_running = has_fan_timer or device_values.get("fan_control_state")
 
     if is_fan_running:
-        return "fan"
+        return HaAction.FAN
 
-    return "idle"
+    return HaAction.IDLE
 
 
-def get_fan_mode(device_values: dict[str, Any]) -> str:
+def get_fan_mode(device_values: dict[str, Any]) -> HaFanMode:
     """Get current fan mode.
 
     We prioritize the commanded state (fan_timer_timeout, fan_control_state)
@@ -184,7 +199,7 @@ def get_fan_mode(device_values: dict[str, Any]) -> str:
         device_values: Device object values
 
     Returns:
-        Fan mode ("auto" or "on")
+        Fan mode
     """
     now_seconds = int(time.time())
     fan_timeout = device_values.get("fan_timer_timeout", 0)
@@ -192,10 +207,10 @@ def get_fan_mode(device_values: dict[str, Any]) -> str:
 
     is_fan_on = has_fan_timer or device_values.get("fan_control_state")
 
-    return "on" if is_fan_on else "auto"
+    return HaFanMode.ON if is_fan_on else HaFanMode.AUTO
 
 
-def get_preset_mode(device_values: dict[str, Any], shared_values: dict[str, Any]) -> str:
+def get_preset_mode(device_values: dict[str, Any], shared_values: dict[str, Any]) -> HaPreset:
     """Get current preset mode.
 
     Away mode is checked from device object (auto_away or away field).
@@ -206,25 +221,25 @@ def get_preset_mode(device_values: dict[str, Any], shared_values: dict[str, Any]
         shared_values: Shared object values (unused, kept for API compatibility)
 
     Returns:
-        Preset mode ("away", "eco", "home")
+        Preset mode
     """
     # Check away mode from DEVICE object (not shared!)
     auto_away = device_values.get("auto_away")
     if isinstance(auto_away, (int, float)) and auto_away > 0:
-        return "away"
+        return HaPreset.AWAY
 
     if device_values.get("away"):
-        return "away"
+        return HaPreset.AWAY
 
     # Check eco mode
     eco = device_values.get("eco", {})
     if isinstance(eco, dict) and eco.get("leaf"):
-        return "eco"
+        return HaPreset.ECO
 
     if device_values.get("leaf"):
-        return "eco"
+        return HaPreset.ECO
 
-    return "home"
+    return HaPreset.HOME
 
 
 def format_temperature(temp: float | None, precision: int = 1) -> str | None:
