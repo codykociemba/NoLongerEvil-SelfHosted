@@ -66,6 +66,7 @@ def format_device_status(
         "is_online": device_values.get("is_online", False),
         "has_leaf": device_values.get("leaf", False),
         "software_version": device_values.get("current_version"),
+        "temperature_scale": device_values.get("temperature_scale", "C"),
     }
 
     # Add shared/structure info

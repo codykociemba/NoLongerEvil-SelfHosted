@@ -226,9 +226,16 @@
       }
     });
 
-    function formatTemp(temp) {
+    function celsiusToFahrenheit(celsius) {
+      return (celsius * 9 / 5) + 32;
+    }
+
+    function formatTemp(temp, scale) {
       if (temp === null || temp === undefined) return '--';
-      return Math.round(temp) + '°';
+      // Temperatures are stored in Celsius, convert if user prefers Fahrenheit
+      const displayTemp = scale === 'F' ? celsiusToFahrenheit(temp) : temp;
+      const unit = scale === 'F' ? 'F' : 'C';
+      return Math.round(displayTemp) + '°' + unit;
     }
 
     function getModeClass(mode) {
@@ -248,11 +255,12 @@
     }
 
     function getTargetTemp(d) {
+      const scale = d.temperature_scale || 'C';
       if (!d.mode || d.mode.toLowerCase() === 'off') return '';
       if (d.mode.toLowerCase() === 'range') {
-        return formatTemp(d.target_temperature_low) + ' - ' + formatTemp(d.target_temperature_high);
+        return formatTemp(d.target_temperature_low, scale) + ' - ' + formatTemp(d.target_temperature_high, scale);
       }
-      return '→ ' + formatTemp(d.target_temperature);
+      return '→ ' + formatTemp(d.target_temperature, scale);
     }
 
     async function loadDevices() {
@@ -273,6 +281,8 @@
             const modeLabel = getModeLabel(d.mode);
             const targetTemp = getTargetTemp(d);
 
+            const scale = d.temperature_scale || 'C';
+
             return '<div class="device-item">' +
               '<div class="device-info">' +
                 '<span class="status-dot ' + statusClass + '" title="' + statusTitle + '"></span> ' +
@@ -281,7 +291,7 @@
               '</div>' +
               '<div class="device-status">' +
                 '<div class="device-temp">' +
-                  '<span class="device-temp-current">' + formatTemp(d.current_temperature) + '</span>' +
+                  '<span class="device-temp-current">' + formatTemp(d.current_temperature, scale) + '</span>' +
                   '<span class="device-temp-target">' + targetTemp + '</span>' +
                 '</div>' +
                 '<span class="device-mode ' + modeClass + '">' + modeLabel + '</span>' +
