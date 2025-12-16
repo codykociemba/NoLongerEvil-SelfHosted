@@ -27,11 +27,11 @@ def build_climate_discovery_payload(
     Always uses Celsius - HA handles display conversion based on user preferences.
     This avoids double-conversion bugs when Nest display unit changes.
 
-    The discovery config is mode-aware: in heat_cool mode, only the high/low
-    temperature topics are included. In heat/cool modes, only the single temperature
-    topic is included. In off mode, no temperature topics are included since you
-    can't set a temperature when the thermostat is off. This ensures HA shows the
-    correct UI controls.
+    The discovery config is mode-aware:
+    - heat_cool mode: high/low temperature topics (range with two setpoints)
+    - heat or cool mode: single temperature topic
+    - off mode: no temperature topics (can't set temperature when off)
+    This ensures HA shows the correct UI controls.
 
     Args:
         serial: Device serial
