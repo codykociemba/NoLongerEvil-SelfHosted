@@ -7,7 +7,7 @@ from nolongerevil.config import settings
 
 
 class ColoredFormatter(logging.Formatter):
-    """Formatter that adds ANSI color codes to log output."""
+    """Formatter that adds ANSI color codes and timestamps to log output."""
 
     # ANSI color codes
     COLORS = {
@@ -20,8 +20,16 @@ class ColoredFormatter(logging.Formatter):
     RESET = "\033[0m"
 
     def __init__(self, fmt: str | None = None, use_color: bool = True):
-        super().__init__(fmt)
+        super().__init__(fmt, datefmt="%H:%M:%S")
         self.use_color = use_color
+
+    def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
+        """Format time with milliseconds as [HH:MM:SS.mmm]."""
+        import time
+
+        ct = self.converter(record.created)
+        s = time.strftime(datefmt, ct) if datefmt else time.strftime("%H:%M:%S", ct)
+        return f"{s}.{int(record.msecs):03d}"
 
     def format(self, record: logging.LogRecord) -> str:
         if self.use_color and record.levelname in self.COLORS:
@@ -57,7 +65,9 @@ def get_logger(name: str) -> logging.Logger:
 
         # Create colored formatter (disable color if not a TTY)
         use_color = sys.stdout.isatty()
-        formatter = ColoredFormatter("[%(levelname)s] %(name)s: %(message)s", use_color=use_color)
+        formatter = ColoredFormatter(
+            "[%(asctime)s] [%(levelname)s] %(name)s: %(message)s", use_color=use_color
+        )
         handler.setFormatter(formatter)
 
         logger.addHandler(handler)
