@@ -11,28 +11,40 @@ homeassistant/climate/nest_02AA01AC/thermostat/config
 
 from typing import Any
 
-from nolongerevil.integrations.mqtt.helpers import get_device_name
+from nolongerevil.integrations.mqtt.consts import MODE_TEMPERATURE_TOPICS
+from nolongerevil.integrations.mqtt.helpers import get_device_name, nest_mode_to_ha
+from nolongerevil.lib.consts import HaFanMode, HaMode, HaPreset
 
 
 def build_climate_discovery_payload(
     serial: str,
     device_name: str,
     topic_prefix: str,
+    shared_values: dict[str, Any],
 ) -> dict[str, Any]:
     """Build Home Assistant climate discovery payload.
 
     Always uses Celsius - HA handles display conversion based on user preferences.
     This avoids double-conversion bugs when Nest display unit changes.
 
+    The discovery config is mode-aware:
+    - heat_cool mode: high/low temperature topics (range with two setpoints)
+    - heat or cool mode: single temperature topic
+    - off mode: no temperature topics (can't set temperature when off)
+    This ensures HA shows the correct UI controls.
+
     Args:
         serial: Device serial
         device_name: Human-readable device name
         topic_prefix: MQTT topic prefix
+        shared_values: Shared object values (used to derive current mode)
 
     Returns:
         Discovery payload dictionary
     """
-    return {
+    # Derive mode from shared_values
+    ha_mode = nest_mode_to_ha(shared_values.get("target_temperature_type"))
+    payload: dict[str, Any] = {
         # Unique identifier
         "unique_id": f"nolongerevil_{serial}",
         # Device name
@@ -63,29 +75,20 @@ def build_climate_discovery_payload(
         "current_temperature_topic": f"{topic_prefix}/{serial}/ha/current_temperature",
         # Current humidity
         "current_humidity_topic": f"{topic_prefix}/{serial}/ha/current_humidity",
-        # Target temperature (heat/cool mode)
-        "temperature_command_topic": f"{topic_prefix}/{serial}/ha/target_temperature/set",
-        "temperature_state_topic": f"{topic_prefix}/{serial}/ha/target_temperature",
-        # Target temperature high (auto mode)
-        "temperature_high_command_topic": f"{topic_prefix}/{serial}/ha/target_temperature_high/set",
-        "temperature_high_state_topic": f"{topic_prefix}/{serial}/ha/target_temperature_high",
-        # Target temperature low (auto mode)
-        "temperature_low_command_topic": f"{topic_prefix}/{serial}/ha/target_temperature_low/set",
-        "temperature_low_state_topic": f"{topic_prefix}/{serial}/ha/target_temperature_low",
         # HVAC mode (heat, cool, heat_cool, off)
         "mode_command_topic": f"{topic_prefix}/{serial}/ha/mode/set",
         "mode_state_topic": f"{topic_prefix}/{serial}/ha/mode",
-        "modes": ["off", "heat", "cool", "heat_cool"],
+        "modes": HaMode.all(),
         # HVAC action (heating, cooling, idle, fan, off)
         "action_topic": f"{topic_prefix}/{serial}/ha/action",
         # Fan mode (on, auto)
         "fan_mode_command_topic": f"{topic_prefix}/{serial}/ha/fan_mode/set",
         "fan_mode_state_topic": f"{topic_prefix}/{serial}/ha/fan_mode",
-        "fan_modes": ["auto", "on"],
+        "fan_modes": HaFanMode.all(),
         # Preset modes (home, away, eco)
         "preset_mode_command_topic": f"{topic_prefix}/{serial}/ha/preset/set",
         "preset_mode_state_topic": f"{topic_prefix}/{serial}/ha/preset",
-        "preset_modes": ["home", "away", "eco"],
+        "preset_modes": HaPreset.all(),
         # Min/max temperature in Celsius (typical Nest range)
         "min_temp": 9,
         "max_temp": 32,
@@ -94,6 +97,17 @@ def build_climate_discovery_payload(
         # QoS
         "qos": 1,
     }
+
+    # Mode-specific temperature topics
+    for topic in MODE_TEMPERATURE_TOPICS.get(ha_mode, ()):
+        payload[f"{topic.discovery_key}_command_topic"] = (
+            f"{topic_prefix}/{serial}/ha/{topic.topic_suffix}/set"
+        )
+        payload[f"{topic.discovery_key}_state_topic"] = (
+            f"{topic_prefix}/{serial}/ha/{topic.topic_suffix}"
+        )
+
+    return payload
 
 
 def build_temperature_sensor_discovery(
@@ -184,8 +198,8 @@ def build_occupancy_binary_sensor_discovery(
             "identifiers": [f"nolongerevil_{serial}"],
         },
         "state_topic": f"{topic_prefix}/{serial}/ha/occupancy",
-        "payload_on": "home",
-        "payload_off": "away",
+        "payload_on": HaPreset.HOME,
+        "payload_off": HaPreset.AWAY,
         "device_class": "occupancy",
         "availability": {
             "topic": f"{topic_prefix}/{serial}/availability",
@@ -374,32 +388,6 @@ def build_time_to_target_sensor_discovery(
     }
 
 
-def build_backplate_temperature_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for backplate temperature sensor."""
-    return {
-        "unique_id": f"nolongerevil_{serial}_backplate_temperature",
-        "name": "Backplate Temperature",
-        "object_id": f"nest_{serial}_backplate_temperature",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
-        "state_topic": f"{topic_prefix}/{serial}/ha/backplate_temperature",
-        "unit_of_measurement": "°C",
-        "device_class": "temperature",
-        "state_class": "measurement",
-        "entity_category": "diagnostic",
-        "availability": {
-            "topic": f"{topic_prefix}/{serial}/availability",
-            "payload_available": "online",
-            "payload_not_available": "offline",
-        },
-        "qos": 0,
-    }
-
-
 def build_sunlight_correction_binary_sensor_discovery(
     serial: str,
     topic_prefix: str,
@@ -417,81 +405,6 @@ def build_sunlight_correction_binary_sensor_discovery(
         "payload_off": "false",
         "icon": "mdi:weather-sunny",
         "entity_category": "diagnostic",
-        "availability": {
-            "topic": f"{topic_prefix}/{serial}/availability",
-            "payload_available": "online",
-            "payload_not_available": "offline",
-        },
-        "qos": 0,
-    }
-
-
-def build_preconditioning_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for preconditioning active sensor."""
-    return {
-        "unique_id": f"nolongerevil_{serial}_preconditioning",
-        "name": "Preconditioning Active",
-        "object_id": f"nest_{serial}_preconditioning",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
-        "state_topic": f"{topic_prefix}/{serial}/ha/preconditioning_active",
-        "payload_on": "true",
-        "payload_off": "false",
-        "icon": "mdi:home-thermometer",
-        "availability": {
-            "topic": f"{topic_prefix}/{serial}/availability",
-            "payload_available": "online",
-            "payload_not_available": "offline",
-        },
-        "qos": 0,
-    }
-
-
-def build_safety_state_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for safety state sensor."""
-    return {
-        "unique_id": f"nolongerevil_{serial}_safety_state",
-        "name": "Safety Issue",
-        "object_id": f"nest_{serial}_safety_state",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
-        "state_topic": f"{topic_prefix}/{serial}/ha/safety_issue",
-        "payload_on": "true",
-        "payload_off": "false",
-        "device_class": "safety",
-        "availability": {
-            "topic": f"{topic_prefix}/{serial}/availability",
-            "payload_available": "online",
-            "payload_not_available": "offline",
-        },
-        "qos": 0,
-    }
-
-
-def build_hvac_safety_shutoff_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for HVAC safety shutoff sensor."""
-    return {
-        "unique_id": f"nolongerevil_{serial}_hvac_safety_shutoff",
-        "name": "HVAC Safety Shutoff",
-        "object_id": f"nest_{serial}_hvac_safety_shutoff",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
-        "state_topic": f"{topic_prefix}/{serial}/ha/hvac_safety_shutoff_active",
-        "payload_on": "true",
-        "payload_off": "false",
-        "device_class": "safety",
         "availability": {
             "topic": f"{topic_prefix}/{serial}/availability",
             "payload_available": "online",
@@ -544,54 +457,6 @@ def build_learning_mode_binary_sensor_discovery(
         "payload_off": "false",
         "icon": "mdi:school",
         "entity_category": "diagnostic",
-        "availability": {
-            "topic": f"{topic_prefix}/{serial}/availability",
-            "payload_available": "online",
-            "payload_not_available": "offline",
-        },
-        "qos": 0,
-    }
-
-
-def build_schedule_mode_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for current schedule mode sensor."""
-    return {
-        "unique_id": f"nolongerevil_{serial}_schedule_mode",
-        "name": "Schedule Mode",
-        "object_id": f"nest_{serial}_schedule_mode",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
-        "state_topic": f"{topic_prefix}/{serial}/ha/schedule_mode",
-        "icon": "mdi:calendar-clock",
-        "availability": {
-            "topic": f"{topic_prefix}/{serial}/availability",
-            "payload_available": "online",
-            "payload_not_available": "offline",
-        },
-        "qos": 0,
-    }
-
-
-def build_aux_heater_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for aux heater state sensor."""
-    return {
-        "unique_id": f"nolongerevil_{serial}_aux_heater",
-        "name": "Aux Heater Active",
-        "object_id": f"nest_{serial}_aux_heater",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
-        "state_topic": f"{topic_prefix}/{serial}/ha/aux_heater_active",
-        "payload_on": "true",
-        "payload_off": "false",
-        "device_class": "heat",
         "availability": {
             "topic": f"{topic_prefix}/{serial}/availability",
             "payload_available": "online",
@@ -727,9 +592,11 @@ def get_all_discovery_configs(
     device_name = get_device_name(device_values, shared_values, serial)
     configs = []
 
-    # Climate entity (main thermostat control)
+    # Climate entity (main thermostat control) - mode-aware for temperature topics
     climate_topic = f"{discovery_prefix}/climate/nest_{serial}/thermostat/config"
-    climate_payload = build_climate_discovery_payload(serial, device_name, topic_prefix)
+    climate_payload = build_climate_discovery_payload(
+        serial, device_name, topic_prefix, shared_values
+    )
     configs.append((climate_topic, climate_payload))
 
     # Temperature sensor
@@ -791,30 +658,10 @@ def get_all_discovery_configs(
     time_to_target_payload = build_time_to_target_sensor_discovery(serial, topic_prefix)
     configs.append((time_to_target_topic, time_to_target_payload))
 
-    # Backplate temperature sensor
-    backplate_temp_topic = f"{discovery_prefix}/sensor/nest_{serial}/backplate_temperature/config"
-    backplate_temp_payload = build_backplate_temperature_sensor_discovery(serial, topic_prefix)
-    configs.append((backplate_temp_topic, backplate_temp_payload))
-
     # Sunlight correction active binary sensor
     sunlight_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/sunlight_correction/config"
     sunlight_payload = build_sunlight_correction_binary_sensor_discovery(serial, topic_prefix)
     configs.append((sunlight_topic, sunlight_payload))
-
-    # Preconditioning active binary sensor
-    preconditioning_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/preconditioning/config"
-    preconditioning_payload = build_preconditioning_binary_sensor_discovery(serial, topic_prefix)
-    configs.append((preconditioning_topic, preconditioning_payload))
-
-    # Safety state binary sensor
-    safety_state_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/safety_state/config"
-    safety_state_payload = build_safety_state_binary_sensor_discovery(serial, topic_prefix)
-    configs.append((safety_state_topic, safety_state_payload))
-
-    # HVAC safety shutoff binary sensor
-    hvac_safety_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/hvac_safety_shutoff/config"
-    hvac_safety_payload = build_hvac_safety_shutoff_binary_sensor_discovery(serial, topic_prefix)
-    configs.append((hvac_safety_topic, hvac_safety_payload))
 
     # Compressor lockout sensor
     compressor_lockout_topic = f"{discovery_prefix}/sensor/nest_{serial}/compressor_lockout/config"
@@ -825,16 +672,6 @@ def get_all_discovery_configs(
     learning_mode_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/learning_mode/config"
     learning_mode_payload = build_learning_mode_binary_sensor_discovery(serial, topic_prefix)
     configs.append((learning_mode_topic, learning_mode_payload))
-
-    # Schedule mode sensor
-    schedule_mode_topic = f"{discovery_prefix}/sensor/nest_{serial}/schedule_mode/config"
-    schedule_mode_payload = build_schedule_mode_sensor_discovery(serial, topic_prefix)
-    configs.append((schedule_mode_topic, schedule_mode_payload))
-
-    # Aux heater binary sensor
-    aux_heater_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/aux_heater/config"
-    aux_heater_payload = build_aux_heater_binary_sensor_discovery(serial, topic_prefix)
-    configs.append((aux_heater_topic, aux_heater_payload))
 
     # Heat pump ready binary sensor
     heat_pump_ready_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/heat_pump_ready/config"
@@ -885,15 +722,9 @@ def get_discovery_removal_topics(
         f"{discovery_prefix}/binary_sensor/nest_{serial}/filter_replacement/config",
         f"{discovery_prefix}/sensor/nest_{serial}/filter_runtime/config",
         f"{discovery_prefix}/sensor/nest_{serial}/time_to_target/config",
-        f"{discovery_prefix}/sensor/nest_{serial}/backplate_temperature/config",
         f"{discovery_prefix}/binary_sensor/nest_{serial}/sunlight_correction/config",
-        f"{discovery_prefix}/binary_sensor/nest_{serial}/preconditioning/config",
-        f"{discovery_prefix}/binary_sensor/nest_{serial}/safety_state/config",
-        f"{discovery_prefix}/binary_sensor/nest_{serial}/hvac_safety_shutoff/config",
         f"{discovery_prefix}/sensor/nest_{serial}/compressor_lockout/config",
         f"{discovery_prefix}/binary_sensor/nest_{serial}/learning_mode/config",
-        f"{discovery_prefix}/sensor/nest_{serial}/schedule_mode/config",
-        f"{discovery_prefix}/binary_sensor/nest_{serial}/aux_heater/config",
         f"{discovery_prefix}/binary_sensor/nest_{serial}/heat_pump_ready/config",
         f"{discovery_prefix}/sensor/nest_{serial}/local_ip/config",
         f"{discovery_prefix}/sensor/nest_{serial}/fan_timer_remaining/config",

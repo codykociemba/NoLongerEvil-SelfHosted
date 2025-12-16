@@ -123,10 +123,6 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
 
     state_service: DeviceStateService = request.app["state_service"]
     subscription_manager: SubscriptionManager = request.app["subscription_manager"]
-    device_availability: DeviceAvailability = request.app["device_availability"]
-
-    # Mark device as seen
-    await device_availability.mark_device_seen(serial)
 
     response_objects: list[DeviceObject] = []
     # Track which client objects we processed (those with valid object_key)
@@ -243,17 +239,14 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
             outdated_objects.append(response_obj)
             continue
 
-        # Check if server has newer data
+        # Only consider server data "newer" if revision is higher
+        # Timestamp alone shouldn't trigger updates - matching revisions means matching data
         server_revision_higher = response_obj.object_revision > client_revision
-        server_timestamp_higher = response_obj.object_timestamp > client_timestamp
 
-        if server_revision_higher or server_timestamp_higher:
+        if server_revision_higher:
             # Server has newer data - send our data to device
             outdated_objects.append(response_obj)
-        elif (
-            client_revision > response_obj.object_revision
-            or client_timestamp > response_obj.object_timestamp
-        ):
+        elif client_revision > response_obj.object_revision:
             # Client has newer data - merge their data
             objects_to_merge.append((client_obj, response_obj))
 
@@ -339,7 +332,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
         except (asyncio.CancelledError, ConnectionResetError):
             pass
         finally:
-            await subscription_manager.remove_chunked_subscription(serial, session)
+            await subscription_manager.remove_chunked_subscription(serial, session, response)
 
         return response
     else:
@@ -367,10 +360,6 @@ async def handle_transport_put(request: web.Request) -> web.Response:
 
     state_service: DeviceStateService = request.app["state_service"]
     subscription_manager: SubscriptionManager = request.app["subscription_manager"]
-    device_availability: DeviceAvailability = request.app["device_availability"]
-
-    # Mark device as seen
-    await device_availability.mark_device_seen(serial)
 
     weave_device_id = extract_weave_device_id(request)
     response_objects: list[dict[str, Any]] = []
