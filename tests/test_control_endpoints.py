@@ -4,7 +4,6 @@ import time
 from datetime import datetime
 
 import httpx
-import pytest
 
 from nolongerevil.lib.types import DeviceObject, DeviceOwner, EntryKey, UserInfo
 from nolongerevil.services.device_state_service import DeviceStateService

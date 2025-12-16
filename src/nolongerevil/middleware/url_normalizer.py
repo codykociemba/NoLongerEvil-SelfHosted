@@ -1,7 +1,7 @@
 """URL normalizer middleware for legacy Nest firmware compatibility."""
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -69,7 +69,7 @@ class URLNormalizerMiddleware(BaseHTTPMiddleware):
 
         if normalized_path != original_path:
             # Create new scope with normalized path
-            scope = request.scope.copy()
+            scope = dict(request.scope)
             scope["path"] = normalized_path
 
             # Update raw_path if present

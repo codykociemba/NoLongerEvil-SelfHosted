@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
 import pytest
 
 from nolongerevil.lib.types import WeatherData

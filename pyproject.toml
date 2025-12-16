@@ -101,6 +101,9 @@ known-first-party = ["nolongerevil"]
 "src/nolongerevil/integrations/mqtt/helpers.py" = ["ARG001"]
 "src/nolongerevil/integrations/mqtt/mqtt_integration.py" = ["ARG002"]
 "src/nolongerevil/models/base.py" = ["ARG002"]  # SQLAlchemy TypeDecorator interface requires dialect param
+"src/nolongerevil/routes/control/status.py" = ["ARG001"]  # Starlette handler signature requires request param
+"src/nolongerevil/routes/nest/ping.py" = ["ARG001"]  # Starlette handler signature requires request param
+"src/nolongerevil/services/subscription_manager.py" = ["ARG002"]  # Method signature kept for API compatibility
 "tests/conftest.py" = ["ARG001"]  # pytest hook requires session arg
 
 [tool.mypy]

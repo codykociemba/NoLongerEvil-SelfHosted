@@ -358,7 +358,7 @@ def create_transport_handlers(
 
         objects = body.get("objects", [])
         if not isinstance(objects, list):
-            return Response("Invalid request: objects array required", status_code=400)
+            return JSONResponse({"error": "Invalid request: objects array required"}, status_code=400)
 
         # Mark device as seen
         await device_availability.mark_device_seen(serial)

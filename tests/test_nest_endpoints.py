@@ -5,7 +5,6 @@ from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import httpx
-import pytest
 
 from nolongerevil.lib.types import DeviceObject
 from nolongerevil.services.device_state_service import DeviceStateService

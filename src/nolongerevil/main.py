@@ -1,6 +1,7 @@
 """Main application entry point with dual-port servers."""
 
 import asyncio
+import contextlib
 import signal
 import ssl
 from datetime import datetime
@@ -303,8 +304,8 @@ async def run_server() -> None:
         proxy_app,
         host=settings.proxy_host,
         port=settings.proxy_port,
-        ssl_keyfile=str(Path(settings.cert_dir) / "privkey.pem") if ssl_context else None,
-        ssl_certfile=str(Path(settings.cert_dir) / "fullchain.pem") if ssl_context else None,
+        ssl_keyfile=str(Path(settings.cert_dir) / "privkey.pem") if ssl_context and settings.cert_dir else None,
+        ssl_certfile=str(Path(settings.cert_dir) / "fullchain.pem") if ssl_context and settings.cert_dir else None,
         log_level="warning",  # Reduce uvicorn logging noise
     )
     control_config = uvicorn.Config(
@@ -335,13 +336,11 @@ async def run_server() -> None:
     logger.info(f"Control API starting on {settings.control_host}:{settings.control_port}")
 
     # Run both servers concurrently
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await asyncio.gather(
             proxy_server.serve(),
             control_server.serve(),
         )
-    except asyncio.CancelledError:
-        pass
 
     # Graceful shutdown
     logger.info("Starting graceful shutdown...")
