@@ -11,12 +11,21 @@ class TestSettings:
         settings = Settings()
 
         assert settings.api_origin == "https://backdoor.nolongerevil.com"
-        assert settings.proxy_port == 443
-        assert settings.control_port == 8081
+        assert settings.port == 8080
+        assert settings.host == "0.0.0.0"
         assert settings.entry_key_ttl_seconds == 3600
         assert settings.weather_cache_ttl_ms == 600000
         assert settings.max_subscriptions_per_device == 100
         assert settings.debug_logging is False
+
+    def test_default_workers(self):
+        """Test default worker count is CPU-based."""
+        import os
+
+        settings = Settings()
+        cpu_count = os.cpu_count() or 1
+        expected = min(2 * cpu_count + 1, 8)
+        assert settings.workers == expected
 
     def test_weather_cache_ttl_seconds(self):
         """Test weather cache TTL conversion."""
@@ -40,11 +49,13 @@ class TestSettings:
 
     def test_env_override(self, monkeypatch):
         """Test environment variable override."""
-        monkeypatch.setenv("PROXY_PORT", "8443")
+        monkeypatch.setenv("PORT", "9000")
+        monkeypatch.setenv("WORKERS", "4")
         monkeypatch.setenv("DEBUG_LOGGING", "true")
 
         # Need to create new instance to pick up env vars
         settings = Settings()
 
-        assert settings.proxy_port == 8443
+        assert settings.port == 9000
+        assert settings.workers == 4
         assert settings.debug_logging is True

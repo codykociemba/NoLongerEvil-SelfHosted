@@ -1,7 +1,6 @@
 # NoLongerEvil Self-Hosted Server
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord&logoColor=white)](https://discord.gg/hackhouse)
-[![codecov](https://codecov.io/gh/codykociemba/NoLongerEvil-SelfHosted/graph/badge.svg)](https://codecov.io/gh/codykociemba/NoLongerEvil-SelfHosted)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/codykociemba/NoLongerEvil-SelfHosted/actions/workflows/ci.yml/badge.svg)](https://github.com/codykociemba/NoLongerEvil-SelfHosted/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/codykociemba/NoLongerEvil-SelfHosted)](https://github.com/codykociemba/NoLongerEvil-SelfHosted/releases/latest)
@@ -11,17 +10,17 @@ A self-hosted server implementation for Nest thermostats, written in Python. Thi
 ## Features
 
 - **Full Nest Protocol Support**: Emulates Nest cloud API endpoints for seamless device communication
-- **Dual-Port Architecture**: Separate APIs for device communication (proxy) and dashboard/automation (control)
 - **Long-Polling Subscriptions**: Real-time device state updates without constant polling
 - **Temperature Safety Bounds**: Configurable min/max temperature limits to prevent extreme settings
 - **Device Availability Tracking**: Monitor device connectivity with automatic timeout detection
 - **Weather Service**: Proxied weather data with caching to reduce API calls
 - **MQTT Integration**: Publish device state to MQTT brokers for Home Assistant integration
 - **Home Assistant Auto-Discovery**: Automatic device discovery in Home Assistant via MQTT
-- **API Key Authentication**: Secure control API access with API keys
+- **API Key Authentication**: Secure API access with API keys
 - **Device Sharing**: Share device access with other users
 - **Persistent Storage**: SQLite3 database for reliable state persistence
 - **Docker Support**: Easy deployment with Docker and Docker Compose
+- **Multi-Worker**: Gunicorn with uvicorn workers for production performance
 
 ## Quick Start
 
@@ -44,9 +43,7 @@ A self-hosted server implementation for Nest thermostats, written in Python. Thi
    docker compose up -d
    ```
 
-The server will be available at:
-- **Device API**: Port 7001 (HTTP) or 443 (HTTPS)
-- **Control API**: Port 8081
+The server will be available at port 8080.
 
 ### Using Python Directly
 
@@ -82,8 +79,9 @@ Configuration is done via environment variables or a `.env` file:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `API_ORIGIN` | `https://backdoor.nolongerevil.com` | Base URL for device API |
-| `PROXY_PORT` | `443` | Port for device API |
-| `CONTROL_PORT` | `8081` | Port for control API |
+| `PORT` | `8080` | Server port |
+| `HOST` | `0.0.0.0` | Server host |
+| `WORKERS` | `2*CPU+1` | Number of worker processes |
 | `CERT_DIR` | - | Directory containing TLS certificates |
 | `ENTRY_KEY_TTL_SECONDS` | `3600` | Pairing code expiration (seconds) |
 | `WEATHER_CACHE_TTL_MS` | `600000` | Weather cache duration (ms) |
@@ -98,12 +96,13 @@ To enable MQTT integration for Home Assistant:
 
 | Variable | Description |
 |----------|-------------|
-| `MQTT_BROKER_URL` | MQTT broker URL (e.g., `mqtt://localhost:1883`) |
+| `MQTT_HOST` | MQTT broker hostname |
+| `MQTT_PORT` | MQTT broker port (default: 1883) |
 | `MQTT_TOPIC_PREFIX` | Topic prefix (default: `nolongerevil`) |
 
 ## API Reference
 
-### Device API (Proxy Port)
+### Nest Protocol Endpoints
 
 These endpoints emulate Nest cloud services:
 
@@ -117,7 +116,7 @@ These endpoints emulate Nest cloud services:
 | `/nest/transport/device/{serial}` | GET | Get device objects |
 | `/nest/weather/v1` | GET | Weather data proxy |
 
-### Control API (Control Port)
+### Control API Endpoints
 
 These endpoints are for dashboards and automation:
 
@@ -129,33 +128,34 @@ These endpoints are for dashboards and automation:
 | `/api/stats` | GET | Server statistics |
 | `/notify-device` | POST | Force notification to subscribers |
 | `/health` | GET | Health check |
+| `/` | GET | Web UI |
 
 #### Command Examples
 
 **Set Temperature:**
 ```bash
-curl -X POST http://localhost:8081/command \
+curl -X POST http://localhost:8080/command \
   -H "Content-Type: application/json" \
   -d '{"serial": "YOUR_SERIAL", "command": "set_temperature", "value": 21.5}'
 ```
 
 **Set Mode:**
 ```bash
-curl -X POST http://localhost:8081/command \
+curl -X POST http://localhost:8080/command \
   -H "Content-Type: application/json" \
   -d '{"serial": "YOUR_SERIAL", "command": "set_mode", "value": "heat"}'
 ```
 
 **Set Away Mode:**
 ```bash
-curl -X POST http://localhost:8081/command \
+curl -X POST http://localhost:8080/command \
   -H "Content-Type: application/json" \
   -d '{"serial": "YOUR_SERIAL", "command": "set_away", "value": true}'
 ```
 
 **Set Fan:**
 ```bash
-curl -X POST http://localhost:8081/command \
+curl -X POST http://localhost:8080/command \
   -H "Content-Type: application/json" \
   -d '{"serial": "YOUR_SERIAL", "command": "set_fan", "value": "on"}'
 ```
@@ -197,10 +197,17 @@ Build and run the Docker image:
 ```bash
 docker build -t nolongerevil-server .
 docker run -d \
-  -p 7001:80 \
-  -p 8081:8081 \
+  -p 8080:8080 \
   -v nolongerevil-data:/app/data \
   nolongerevil-server
+```
+
+### Worker Configuration
+
+The server uses Gunicorn with uvicorn workers for production performance. By default, it spawns `2 * CPU + 1` workers (max 8). Override with:
+
+```bash
+docker run -d -e WORKERS=4 -p 8080:8080 nolongerevil-server
 ```
 
 ### TLS/HTTPS
@@ -217,7 +224,6 @@ For production deployments with HTTPS:
 2. Configure the server:
    ```bash
    CERT_DIR=/path/to/certs
-   PROXY_PORT=443
    ```
 
 3. Mount the certificates in Docker:

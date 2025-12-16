@@ -78,8 +78,7 @@ jobs:
 
             ```bash
             docker run -d \
-              -p 7001:80 \
-              -p 8081:8081 \
+              -p 8080:8080 \
               -v nolongerevil-data:/app/data \
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
             ```

@@ -1,9 +1,17 @@
 """Environment configuration with validation."""
 
+import os
 from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def get_default_workers() -> int:
+    """Get default worker count based on CPU cores."""
+    cpu_count = os.cpu_count() or 1
+    # Common formula: 2 * CPU + 1, but cap at reasonable max
+    return min(2 * cpu_count + 1, 8)
 
 
 class Settings(BaseSettings):
@@ -21,21 +29,17 @@ class Settings(BaseSettings):
         default="https://backdoor.nolongerevil.com",
         description="API URL for device communication",
     )
-    proxy_host: str = Field(
+    host: str = Field(
         default="0.0.0.0",
-        description="Host/IP to bind device API server",
+        description="Host/IP to bind server",
     )
-    proxy_port: int = Field(
-        default=443,
-        description="Port for device API (Nest protocol emulation)",
+    port: int = Field(
+        default=8080,
+        description="Port for HTTP server",
     )
-    control_host: str = Field(
-        default="0.0.0.0",
-        description="Host/IP to bind control API server",
-    )
-    control_port: int = Field(
-        default=8081,
-        description="Port for control API (dashboard/automation)",
+    workers: int = Field(
+        default_factory=get_default_workers,
+        description="Number of worker processes (default: 2*CPU+1)",
     )
 
     # TLS configuration

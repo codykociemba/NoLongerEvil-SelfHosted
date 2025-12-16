@@ -215,13 +215,15 @@ def create_command_handler(
 
             logger.info(f"Command {command} executed for device {serial}")
 
-            return JSONResponse({
-                "success": True,
-                "data": {
-                    "object_key": updated_obj.object_key,
-                    "values": values,
-                },
-            })
+            return JSONResponse(
+                {
+                    "success": True,
+                    "data": {
+                        "object_key": updated_obj.object_key,
+                        "values": values,
+                    },
+                }
+            )
 
         except Exception as e:
             logger.error(f"Command {command} failed for device {serial}: {e}")

@@ -165,16 +165,20 @@ def create_status_handlers(
 
             await subscription_manager.notify_all_subscribers(serial, [dismissed_dialog])
 
-            return JSONResponse({
-                "success": True,
-                "message": f"Pairing dialog dismissed for {serial}",
-            })
+            return JSONResponse(
+                {
+                    "success": True,
+                    "message": f"Pairing dialog dismissed for {serial}",
+                }
+            )
         else:
             logger.debug(f"No pairing dialog found for {serial}")
-            return JSONResponse({
-                "success": True,
-                "message": f"No pairing dialog to dismiss for {serial}",
-            })
+            return JSONResponse(
+                {
+                    "success": True,
+                    "message": f"No pairing dialog to dismiss for {serial}",
+                }
+            )
 
     async def handle_delete_device(request: Request) -> JSONResponse:
         """Handle DELETE /api/device - delete a device by serial."""
@@ -191,11 +195,13 @@ def create_status_handlers(
 
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} objects for device {serial}")
-            return JSONResponse({
-                "success": True,
-                "serial": serial,
-                "objects_deleted": deleted_count,
-            })
+            return JSONResponse(
+                {
+                    "success": True,
+                    "serial": serial,
+                    "objects_deleted": deleted_count,
+                }
+            )
         else:
             return JSONResponse({"error": "Device not found"}, status_code=404)
 

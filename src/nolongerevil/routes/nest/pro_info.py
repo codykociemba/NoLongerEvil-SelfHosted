@@ -23,12 +23,14 @@ async def handle_pro_info(request: Request) -> JSONResponse:
     logger.debug(f"Pro info request for code: {code}")
 
     # Return empty/default pro info
-    return JSONResponse({
-        "pro_id": code,
-        "company_name": "Self-Hosted",
-        "phone": "",
-        "email": "",
-    })
+    return JSONResponse(
+        {
+            "pro_id": code,
+            "company_name": "Self-Hosted",
+            "phone": "",
+            "email": "",
+        }
+    )
 
 
 def create_pro_info_routes() -> list[Route]:

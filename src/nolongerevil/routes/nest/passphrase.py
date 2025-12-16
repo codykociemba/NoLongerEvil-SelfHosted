@@ -43,11 +43,13 @@ def create_passphrase_handlers(state_service: DeviceStateService):
         if not entry_key:
             # No entry key found - device hasn't requested one yet
             logger.debug(f"No entry key found for {serial}")
-            return JSONResponse({
-                "status": "no_key",
-                "claimed": False,
-                "message": "No entry key found for this device",
-            })
+            return JSONResponse(
+                {
+                    "status": "no_key",
+                    "claimed": False,
+                    "message": "No entry key found for this device",
+                }
+            )
 
         # Check if the entry key has been claimed
         if entry_key.claimed_by:
@@ -56,22 +58,26 @@ def create_passphrase_handlers(state_service: DeviceStateService):
             claimed_at_ms = (
                 int(entry_key.claimed_at.timestamp() * 1000) if entry_key.claimed_at else None
             )
-            return JSONResponse({
-                "status": "claimed",
-                "claimed": True,
-                "claimedBy": entry_key.claimed_by,
-                "claimedAt": claimed_at_ms,
-            })
+            return JSONResponse(
+                {
+                    "status": "claimed",
+                    "claimed": True,
+                    "claimedBy": entry_key.claimed_by,
+                    "claimedAt": claimed_at_ms,
+                }
+            )
         else:
             # Entry key exists but hasn't been claimed yet
             logger.debug(f"Entry key for {serial} not yet claimed")
             # Convert datetime to millisecond timestamp for response
             expires_at_ms = int(entry_key.expires_at.timestamp() * 1000)
-            return JSONResponse({
-                "status": "pending",
-                "claimed": False,
-                "expiresAt": expires_at_ms,
-            })
+            return JSONResponse(
+                {
+                    "status": "pending",
+                    "claimed": False,
+                    "expiresAt": expires_at_ms,
+                }
+            )
 
     async def handle_passphrase(request: Request) -> JSONResponse:
         """Handle entry key generation request.
@@ -124,10 +130,12 @@ def create_passphrase_handlers(state_service: DeviceStateService):
             await state_service.upsert_object(pairing_dialog)
             logger.info(f"Created pairing dialog for {serial}")
 
-        return JSONResponse({
-            "value": entry_key.get("code"),
-            "expires": entry_key.get("expiresAt"),
-        })
+        return JSONResponse(
+            {
+                "value": entry_key.get("code"),
+                "expires": entry_key.get("expiresAt"),
+            }
+        )
 
     return handle_passphrase, handle_passphrase_status
 

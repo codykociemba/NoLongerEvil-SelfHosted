@@ -198,7 +198,9 @@ def create_transport_handlers(
                     if "away" in value or "postal_code" in value:
                         device_owner = await state_service.storage.get_device_owner(serial)
                         if device_owner:
-                            await state_service.storage.update_user_away_status(device_owner.user_id)
+                            await state_service.storage.update_user_away_status(
+                                device_owner.user_id
+                            )
                             await state_service.storage.sync_user_weather_from_device(
                                 device_owner.user_id
                             )
@@ -315,7 +317,10 @@ def create_transport_handlers(
                 """Generate events for streaming response."""
                 # Add to subscription manager
                 added = await subscription_manager.add_chunked_subscription(
-                    serial, session, subscribed_keys, None  # We'll handle writing differently
+                    serial,
+                    session,
+                    subscribed_keys,
+                    None,  # We'll handle writing differently
                 )
 
                 if not added:
@@ -358,7 +363,9 @@ def create_transport_handlers(
 
         objects = body.get("objects", [])
         if not isinstance(objects, list):
-            return JSONResponse({"error": "Invalid request: objects array required"}, status_code=400)
+            return JSONResponse(
+                {"error": "Invalid request: objects array required"}, status_code=400
+            )
 
         # Mark device as seen
         await device_availability.mark_device_seen(serial)

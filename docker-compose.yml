@@ -4,11 +4,7 @@ services:
     container_name: nolongerevil-server
     restart: unless-stopped
     ports:
-      # Device API ports
-      - "7001:80"      # HTTP (for testing/local)
-      - "443:443"      # HTTPS (production)
-      # Control API port
-      - "8081:8081"
+      - "8080:8080"
     volumes:
       # Persistent data storage
       - nolongerevil-data:/app/data
@@ -17,8 +13,8 @@ services:
     environment:
       # Server configuration
       - API_ORIGIN=https://backdoor.nolongerevil.com
-      - PROXY_PORT=80
-      - CONTROL_PORT=8081
+      - PORT=8080
+      # - WORKERS=4  # Override worker count (default: 2*CPU+1)
 
       # TLS configuration (uncomment if using certificates)
       # - CERT_DIR=/app/certs
@@ -40,10 +36,11 @@ services:
       - SQLITE3_DB_PATH=/app/data/database.sqlite
 
       # MQTT configuration (optional)
-      # - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
+      # - MQTT_HOST=mqtt-broker
+      # - MQTT_PORT=1883
       # - MQTT_TOPIC_PREFIX=nolongerevil
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
       timeout: 10s
       retries: 3

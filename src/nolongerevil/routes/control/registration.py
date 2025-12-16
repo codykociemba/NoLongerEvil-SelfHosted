@@ -85,11 +85,13 @@ def create_registration_handlers(storage: SQLModelService):
             await storage.set_device_owner(owner)
             logger.info(f"Registered device {serial} to user {user_id}")
 
-        return JSONResponse({
-            "success": True,
-            "serial": serial,
-            "message": f"Device {serial} registered to {user_id}",
-        })
+        return JSONResponse(
+            {
+                "success": True,
+                "serial": serial,
+                "message": f"Device {serial} registered to {user_id}",
+            }
+        )
 
     async def handle_registered_devices(request: Request) -> JSONResponse:
         """Handle GET /api/registered-devices - get devices registered to a user."""
@@ -251,7 +253,9 @@ def create_registration_routes(storage: SQLModelService) -> list[Route]:
     return [
         Route("/api/register", handle_register, methods=["POST"]),
         Route("/api/registered-devices", handle_registered_devices, methods=["GET"]),
-        Route("/api/registered-devices/{serial}", handle_delete_registered_device, methods=["DELETE"]),
+        Route(
+            "/api/registered-devices/{serial}", handle_delete_registered_device, methods=["DELETE"]
+        ),
         Route("/api/ensure-user", handle_ensure_user, methods=["POST"]),
         Route("/api/mqtt-config", handle_mqtt_config, methods=["POST"]),
     ]
