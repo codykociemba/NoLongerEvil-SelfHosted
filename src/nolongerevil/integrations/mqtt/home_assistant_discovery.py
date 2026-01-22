@@ -1,3 +1,4 @@
+
 """Home Assistant MQTT discovery message generation.
 
 Reference: https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
@@ -22,36 +23,12 @@ def build_climate_discovery_payload(
     topic_prefix: str,
     shared_values: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build Home Assistant climate discovery payload.
-
-    Always uses Celsius - HA handles display conversion based on user preferences.
-    This avoids double-conversion bugs when Nest display unit changes.
-
-    The discovery config is mode-aware:
-    - heat_cool mode: high/low temperature topics (range with two setpoints)
-    - heat or cool mode: single temperature topic
-    - off mode: no temperature topics (can't set temperature when off)
-    This ensures HA shows the correct UI controls.
-
-    Args:
-        serial: Device serial
-        device_name: Human-readable device name
-        topic_prefix: MQTT topic prefix
-        shared_values: Shared object values (used to derive current mode)
-
-    Returns:
-        Discovery payload dictionary
-    """
-    # Derive mode from shared_values
     ha_mode = nest_mode_to_ha(shared_values.get("target_temperature_type"))
+
     payload: dict[str, Any] = {
-        # Unique identifier
         "unique_id": f"nolongerevil_{serial}",
-        # Device name
         "name": device_name,
-        # Object ID (used for entity naming)
-        "object_id": f"nest_{serial}",
-        # Device info (groups all entities together)
+        "default_entity_id": f"climate.nest_{serial}",
         "device": {
             "identifiers": [f"nolongerevil_{serial}"],
             "name": device_name,
@@ -59,46 +36,32 @@ def build_climate_discovery_payload(
             "manufacturer": "Google Nest",
             "sw_version": "NoLongerEvil",
         },
-        # Availability topic
         "availability": {
             "topic": f"{topic_prefix}/{serial}/availability",
             "payload_available": "online",
             "payload_not_available": "offline",
         },
-        # Temperature unit - always Celsius (Nest internal format)
-        # HA will convert to user's display preference automatically
         "temperature_unit": "C",
-        # Precision (0.5 for Nest)
         "precision": 0.5,
         "temp_step": 0.5,
-        # Current temperature
         "current_temperature_topic": f"{topic_prefix}/{serial}/ha/current_temperature",
-        # Current humidity
         "current_humidity_topic": f"{topic_prefix}/{serial}/ha/current_humidity",
-        # HVAC mode (heat, cool, heat_cool, off)
         "mode_command_topic": f"{topic_prefix}/{serial}/ha/mode/set",
         "mode_state_topic": f"{topic_prefix}/{serial}/ha/mode",
         "modes": HaMode.all(),
-        # HVAC action (heating, cooling, idle, fan, off)
         "action_topic": f"{topic_prefix}/{serial}/ha/action",
-        # Fan mode (on, auto)
         "fan_mode_command_topic": f"{topic_prefix}/{serial}/ha/fan_mode/set",
         "fan_mode_state_topic": f"{topic_prefix}/{serial}/ha/fan_mode",
         "fan_modes": HaFanMode.all(),
-        # Preset modes (home, away, eco)
         "preset_mode_command_topic": f"{topic_prefix}/{serial}/ha/preset/set",
         "preset_mode_state_topic": f"{topic_prefix}/{serial}/ha/preset",
         "preset_modes": HaPreset.all(),
-        # Min/max temperature in Celsius (typical Nest range)
         "min_temp": 9,
         "max_temp": 32,
-        # Optimistic mode
         "optimistic": False,
-        # QoS
         "qos": 1,
     }
 
-    # Mode-specific temperature topics
     for topic in MODE_TEMPERATURE_TOPICS.get(ha_mode, ()):
         payload[f"{topic.discovery_key}_command_topic"] = (
             f"{topic_prefix}/{serial}/ha/{topic.topic_suffix}/set"
@@ -110,18 +73,12 @@ def build_climate_discovery_payload(
     return payload
 
 
-def build_temperature_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for temperature sensor."""
+def build_temperature_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_temperature",
         "name": "Temperature",
-        "object_id": f"nest_{serial}_temperature",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_temperature",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/current_temperature",
         "unit_of_measurement": "°C",
         "device_class": "temperature",
@@ -135,18 +92,12 @@ def build_temperature_sensor_discovery(
     }
 
 
-def build_humidity_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for humidity sensor."""
+def build_humidity_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_humidity",
         "name": "Humidity",
-        "object_id": f"nest_{serial}_humidity",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_humidity",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/current_humidity",
         "unit_of_measurement": "%",
         "device_class": "humidity",
@@ -160,18 +111,12 @@ def build_humidity_sensor_discovery(
     }
 
 
-def build_outdoor_temperature_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for outdoor temperature sensor."""
+def build_outdoor_temperature_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_outdoor_temperature",
         "name": "Outdoor Temperature",
-        "object_id": f"nest_{serial}_outdoor_temperature",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_outdoor_temperature",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/outdoor_temperature",
         "unit_of_measurement": "°C",
         "device_class": "temperature",
@@ -185,18 +130,12 @@ def build_outdoor_temperature_sensor_discovery(
     }
 
 
-def build_occupancy_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for occupancy binary sensor."""
+def build_occupancy_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_occupancy",
         "name": "Occupancy",
-        "object_id": f"nest_{serial}_occupancy",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"binary_sensor.nest_{serial}_occupancy",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/occupancy",
         "payload_on": HaPreset.HOME,
         "payload_off": HaPreset.AWAY,
@@ -210,18 +149,12 @@ def build_occupancy_binary_sensor_discovery(
     }
 
 
-def build_fan_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for fan binary sensor."""
+def build_fan_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_fan",
         "name": "Fan",
-        "object_id": f"nest_{serial}_fan",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"binary_sensor.nest_{serial}_fan",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/fan_running",
         "payload_on": "true",
         "payload_off": "false",
@@ -235,18 +168,12 @@ def build_fan_binary_sensor_discovery(
     }
 
 
-def build_leaf_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for leaf (eco) binary sensor."""
+def build_leaf_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_leaf",
         "name": "Eco Mode",
-        "object_id": f"nest_{serial}_leaf",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"binary_sensor.nest_{serial}_leaf",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/eco",
         "payload_on": "true",
         "payload_off": "false",
@@ -260,18 +187,12 @@ def build_leaf_binary_sensor_discovery(
     }
 
 
-def build_battery_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for battery sensor."""
+def build_battery_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_battery",
         "name": "Battery",
-        "object_id": f"nest_{serial}_battery",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_battery",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/battery",
         "unit_of_measurement": "%",
         "device_class": "battery",
@@ -285,18 +206,12 @@ def build_battery_sensor_discovery(
     }
 
 
-def build_rssi_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for WiFi signal strength sensor."""
+def build_rssi_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_rssi",
         "name": "WiFi Signal",
-        "object_id": f"nest_{serial}_rssi",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_rssi",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/rssi",
         "unit_of_measurement": "dBm",
         "device_class": "signal_strength",
@@ -312,17 +227,13 @@ def build_rssi_sensor_discovery(
 
 
 def build_filter_replacement_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
+    serial: str, topic_prefix: str
 ) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for filter replacement needed sensor."""
     return {
         "unique_id": f"nolongerevil_{serial}_filter_replacement",
         "name": "Filter Replacement Needed",
-        "object_id": f"nest_{serial}_filter_replacement",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"binary_sensor.nest_{serial}_filter_replacement",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/filter_replacement_needed",
         "payload_on": "true",
         "payload_off": "false",
@@ -337,18 +248,12 @@ def build_filter_replacement_binary_sensor_discovery(
     }
 
 
-def build_filter_runtime_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for filter runtime sensor."""
+def build_filter_runtime_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_filter_runtime",
         "name": "Filter Runtime",
-        "object_id": f"nest_{serial}_filter_runtime",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_filter_runtime",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/filter_runtime_days",
         "unit_of_measurement": "d",
         "icon": "mdi:air-filter",
@@ -363,18 +268,12 @@ def build_filter_runtime_sensor_discovery(
     }
 
 
-def build_time_to_target_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for time to target sensor."""
+def build_time_to_target_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_time_to_target",
         "name": "Time to Target",
-        "object_id": f"nest_{serial}_time_to_target",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_time_to_target",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/time_to_target",
         "unit_of_measurement": "min",
         "icon": "mdi:clock-outline",
@@ -388,18 +287,12 @@ def build_time_to_target_sensor_discovery(
     }
 
 
-def build_sunlight_correction_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for sunlight correction active sensor."""
+def build_sunlight_correction_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_sunlight_correction",
         "name": "Sunlight Correction Active",
-        "object_id": f"nest_{serial}_sunlight_correction",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"binary_sensor.nest_{serial}_sunlight_correction",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/sunlight_correction_active",
         "payload_on": "true",
         "payload_off": "false",
@@ -414,18 +307,12 @@ def build_sunlight_correction_binary_sensor_discovery(
     }
 
 
-def build_compressor_lockout_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for compressor lockout sensor."""
+def build_compressor_lockout_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_compressor_lockout",
         "name": "Compressor Lockout",
-        "object_id": f"nest_{serial}_compressor_lockout",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_compressor_lockout",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/compressor_lockout_timeout",
         "unit_of_measurement": "s",
         "icon": "mdi:timer-lock",
@@ -440,18 +327,12 @@ def build_compressor_lockout_sensor_discovery(
     }
 
 
-def build_learning_mode_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for learning mode sensor."""
+def build_learning_mode_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_learning_mode",
         "name": "Learning Mode",
-        "object_id": f"nest_{serial}_learning_mode",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"binary_sensor.nest_{serial}_learning_mode",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/learning_mode",
         "payload_on": "true",
         "payload_off": "false",
@@ -466,18 +347,12 @@ def build_learning_mode_binary_sensor_discovery(
     }
 
 
-def build_heat_pump_ready_binary_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for heat pump ready sensor."""
+def build_heat_pump_ready_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_heat_pump_ready",
         "name": "Heat Pump Ready",
-        "object_id": f"nest_{serial}_heat_pump_ready",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"binary_sensor.nest_{serial}_heat_pump_ready",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/heat_pump_ready",
         "payload_on": "true",
         "payload_off": "false",
@@ -492,18 +367,12 @@ def build_heat_pump_ready_binary_sensor_discovery(
     }
 
 
-def build_local_ip_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for local IP sensor."""
+def build_local_ip_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_local_ip",
         "name": "Local IP",
-        "object_id": f"nest_{serial}_local_ip",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_local_ip",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/local_ip",
         "icon": "mdi:ip-network",
         "entity_category": "diagnostic",
@@ -516,18 +385,12 @@ def build_local_ip_sensor_discovery(
     }
 
 
-def build_fan_timer_remaining_sensor_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for fan timer remaining sensor."""
+def build_fan_timer_remaining_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_fan_timer_remaining",
         "name": "Fan Timer Remaining",
-        "object_id": f"nest_{serial}_fan_timer_remaining",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"sensor.nest_{serial}_fan_timer_remaining",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/fan_timer_remaining",
         "unit_of_measurement": "min",
         "icon": "mdi:fan-clock",
@@ -541,18 +404,12 @@ def build_fan_timer_remaining_sensor_discovery(
     }
 
 
-def build_fan_duration_number_discovery(
-    serial: str,
-    topic_prefix: str,
-) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for fan duration number entity."""
+def build_fan_duration_number_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     return {
         "unique_id": f"nolongerevil_{serial}_fan_duration",
         "name": "Fan Duration",
-        "object_id": f"nest_{serial}_fan_duration",
-        "device": {
-            "identifiers": [f"nolongerevil_{serial}"],
-        },
+        "default_entity_id": f"number.nest_{serial}_fan_duration",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/fan_duration",
         "command_topic": f"{topic_prefix}/{serial}/ha/fan_duration/set",
         "unit_of_measurement": "min",
@@ -568,6 +425,7 @@ def build_fan_duration_number_discovery(
         },
         "qos": 1,
     }
+
 
 
 def get_all_discovery_configs(
