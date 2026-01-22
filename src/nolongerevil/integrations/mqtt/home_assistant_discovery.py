@@ -43,6 +43,7 @@ def build_climate_discovery_payload(
     Returns:
         Discovery payload dictionary
     """
+    # Derive mode from shared_values
     ha_mode = nest_mode_to_ha(shared_values.get("target_temperature_type"))
 
     payload: dict[str, Any] = {
@@ -66,7 +67,8 @@ def build_climate_discovery_payload(
             "payload_available": "online",
             "payload_not_available": "offline",
         },
-        # Temperature unit - always Celsius
+        # Temperature unit - always Celsius (Nest internal format)
+        # HA will convert to user's display preference automatically
         "temperature_unit": "C",
         # Precision (0.5 for Nest)
         "precision": 0.5,
@@ -75,21 +77,21 @@ def build_climate_discovery_payload(
         "current_temperature_topic": f"{topic_prefix}/{serial}/ha/current_temperature",
         # Current humidity
         "current_humidity_topic": f"{topic_prefix}/{serial}/ha/current_humidity",
-        # HVAC mode
+        # HVAC mode (heat, cool, heat_cool, off)
         "mode_command_topic": f"{topic_prefix}/{serial}/ha/mode/set",
         "mode_state_topic": f"{topic_prefix}/{serial}/ha/mode",
         "modes": HaMode.all(),
         # HVAC action
         "action_topic": f"{topic_prefix}/{serial}/ha/action",
-        # Fan mode
+        # Fan mode (on, auto)
         "fan_mode_command_topic": f"{topic_prefix}/{serial}/ha/fan_mode/set",
         "fan_mode_state_topic": f"{topic_prefix}/{serial}/ha/fan_mode",
         "fan_modes": HaFanMode.all(),
-        # Presets
+        # Preset modes (home, away, eco)
         "preset_mode_command_topic": f"{topic_prefix}/{serial}/ha/preset/set",
         "preset_mode_state_topic": f"{topic_prefix}/{serial}/ha/preset",
         "preset_modes": HaPreset.all(),
-        # Temperature range
+        # Min/max temperature in Celsius (typical Nest range)
         "min_temp": 9,
         "max_temp": 32,
         # Optimistic mode
