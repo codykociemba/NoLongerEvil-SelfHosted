@@ -103,7 +103,7 @@ class SubscriptionManager:
             return True
 
     async def remove_chunked_subscription(
-        self, serial: str, session_id: str, response: web.StreamResponse | None = None
+        self, serial: str, session_id: str, response: Any | None = None
     ) -> None:
         """Remove a chunked subscription.
 

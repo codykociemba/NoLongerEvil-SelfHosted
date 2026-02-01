@@ -290,3 +290,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Module-level app instance for uvicorn
+app = create_app()
