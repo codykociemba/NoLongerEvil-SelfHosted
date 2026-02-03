@@ -17,43 +17,13 @@ Worst-case push latency = single hold cycle (~48s with 60s suspend max).
 
 import asyncio
 import json
-import os
 import time
 from datetime import datetime
 from typing import Any
 
 from aiohttp import web
 
-# =============================================================================
-# SUBSCRIPTION TIMING CONFIGURATION
-# =============================================================================
-# SUSPEND_TIME_MAX: Tells device how long to sleep after we disconnect.
-# This is also approximately how long we hold the connection open.
-# We respond at 80% of this time (tickle timeout) to ensure we beat the device's
-# internal timeout and maintain the connection cycle.
-#
-# Higher values = more sleep time, less responsive to commands
-# Lower values = more responsive, but more frequent connections
-#
-# DEFAULT: 60 seconds (we respond at 48s, device reconnects ~10-12s later)
-# =============================================================================
-
-_raw_suspend_max = int(os.environ.get("SUSPEND_TIME_MAX", "60"))
-if _raw_suspend_max < 30:
-    print(f"WARNING: SUSPEND_TIME_MAX={_raw_suspend_max} is too low. Clamping to 30")
-    SUSPEND_TIME_MAX = 30
-elif _raw_suspend_max > 300:
-    print(f"WARNING: SUSPEND_TIME_MAX={_raw_suspend_max} is too high (device will seem unresponsive). Clamping to 300")
-    SUSPEND_TIME_MAX = 300
-else:
-    SUSPEND_TIME_MAX = _raw_suspend_max
-
-# TICKLE_TIMEOUT_PERCENT: When to send a tickle response (as % of SUSPEND_TIME_MAX)
-# At 80%, we respond before the device's sleep timer would expire, ensuring
-# the device reconnects promptly after sleeping.
-TICKLE_TIMEOUT_PERCENT = 0.80
-TICKLE_TIMEOUT = SUSPEND_TIME_MAX * TICKLE_TIMEOUT_PERCENT
-
+from nolongerevil.config.environment import settings
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.serial_parser import extract_serial_from_request, extract_weave_device_id
 from nolongerevil.lib.types import DeviceObject
@@ -149,7 +119,7 @@ def _make_response_headers() -> dict[str, str]:
     """Create standard response headers for Nest protocol."""
     return {
         "X-nl-service-timestamp": str(int(time.time() * 1000)),
-        "X-nl-suspend-time-max": str(SUSPEND_TIME_MAX),
+        "X-nl-suspend-time-max": str(settings.suspend_time_max),
     }
 
 
@@ -182,7 +152,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
 
     logger.debug(
         f"Subscribe from {serial}: chunked={chunked}, {len(objects)} objects, session={session}, "
-        f"suspend_max={SUSPEND_TIME_MAX}s, tickle_at={TICKLE_TIMEOUT:.0f}s"
+        f"suspend_max={settings.suspend_time_max}s, tickle_at={settings.tickle_timeout:.0f}s"
     )
     for obj in objects:  # Log all objects
         logger.debug(
@@ -388,7 +358,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
             response_data,
             headers={
                 "X-nl-service-timestamp": str(int(time.time() * 1000)),
-                "X-nl-suspend-time-max": str(SUSPEND_TIME_MAX),
+                "X-nl-suspend-time-max": str(settings.suspend_time_max),
             },
         )
 
@@ -400,7 +370,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
     #
     # We respond when:
     # 1. New data arrives (via subscription notification)
-    # 2. Timeout approaching (TICKLE_TIMEOUT seconds)
+    # 2. Timeout approaching (settings.tickle_timeout seconds)
     # 3. Connection drops (cleanup)
     # =========================================================================
 
@@ -430,7 +400,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
             headers=_make_response_headers(),
         )
 
-    logger.debug(f"Holding connection silently for {serial} (session: {session}), timeout at {TICKLE_TIMEOUT:.0f}s")
+    logger.debug(f"Holding connection silently for {serial} (session: {session}), timeout at {settings.tickle_timeout:.0f}s")
 
     notify_queue = subscription_manager.get_subscription_queue(serial, session)
 
@@ -445,7 +415,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
         # Wait for data or timeout
         try:
             changed_objects = await asyncio.wait_for(
-                notify_queue.get(), timeout=TICKLE_TIMEOUT
+                notify_queue.get(), timeout=settings.tickle_timeout
             )
             # Real data arrived - send it
             logger.debug(f"Subscription {session}: sending {len(changed_objects)} pushed objects")
@@ -456,7 +426,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.Response:
 
         except asyncio.TimeoutError:
             # Timeout - send tickle response (empty objects)
-            logger.debug(f"Subscription {session}: tickle timeout at {TICKLE_TIMEOUT:.0f}s")
+            logger.debug(f"Subscription {session}: tickle timeout at {settings.tickle_timeout:.0f}s")
             return web.json_response(
                 {"objects": []},
                 headers=_make_response_headers(),

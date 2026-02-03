@@ -1,19 +1,18 @@
 """Nest upload endpoint - device log file upload."""
 
 import gzip
-import os
 from datetime import datetime
 from pathlib import Path
 
 from aiohttp import web
 
+from nolongerevil.config.environment import settings
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.serial_parser import extract_serial_from_request
 
 logger = get_logger(__name__)
 
 LOG_STORAGE_PATH = Path("/app/data/device_logs")
-STORE_DEVICE_LOGS = os.environ.get("STORE_DEVICE_LOGS", "").lower() in ("true", "1", "yes")
 
 
 async def handle_upload(request: web.Request) -> web.Response:
@@ -29,7 +28,7 @@ async def handle_upload(request: web.Request) -> web.Response:
         size = len(data)
         logger.info(f"Received log upload from device {serial or 'unknown'}: {size} bytes")
 
-        if STORE_DEVICE_LOGS:
+        if settings.store_device_logs:
             device_dir = LOG_STORAGE_PATH / (serial or "unknown")
             device_dir.mkdir(parents=True, exist_ok=True)
 

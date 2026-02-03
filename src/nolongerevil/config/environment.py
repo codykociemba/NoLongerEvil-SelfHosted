@@ -61,6 +61,12 @@ class Settings(BaseSettings):
         default=100,
         description="Maximum concurrent subscriptions per device",
     )
+    suspend_time_max: int = Field(
+        default=60,
+        ge=30,
+        le=300,
+        description="Maximum time in seconds before server sends tickle response",
+    )
 
     # Debug configuration
     debug_logging: bool = Field(
@@ -70,6 +76,10 @@ class Settings(BaseSettings):
     debug_logs_dir: str = Field(
         default="./data/debug-logs",
         description="Directory for debug log files",
+    )
+    store_device_logs: bool = Field(
+        default=False,
+        description="Store uploaded device logs to disk",
     )
 
     # Database configuration
@@ -115,6 +125,11 @@ class Settings(BaseSettings):
     def weather_cache_ttl_seconds(self) -> float:
         """Get weather cache TTL in seconds."""
         return self.weather_cache_ttl_ms / 1000.0
+
+    @property
+    def tickle_timeout(self) -> float:
+        """Get tickle timeout (80% of suspend_time_max)."""
+        return self.suspend_time_max * 0.80
 
     @property
     def data_dir(self) -> Path:
