@@ -21,7 +21,6 @@ from nolongerevil.integrations.mqtt.helpers import (
     derive_hvac_action,
     get_fan_mode,
     get_preset_mode,
-    ha_mode_to_nest,
     is_device_away,
     is_eco_active,
     is_fan_running,
@@ -39,6 +38,7 @@ from nolongerevil.integrations.mqtt.topic_builder import (
 from nolongerevil.lib.consts import HaPreset, NestEcoMode
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.types import DeviceStateChange, IntegrationConfig
+from nolongerevil.routes.control.command import CommandError, execute_command
 
 if TYPE_CHECKING:
     from nolongerevil.services.device_state_service import DeviceStateService
@@ -214,99 +214,108 @@ class MqttIntegration(BaseIntegration):
             logger.warning(f"Device {serial} not fully initialized")
             return
 
-        if command == "mode":
-            nest_mode = ha_mode_to_nest(payload)
-            await self._update_shared_value(
-                serial, shared_obj, "target_temperature_type", nest_mode
-            )
-
-        elif command == "target_temperature":
-            temp = float(payload)
-            await self._update_shared_value(serial, shared_obj, "target_temperature", temp)
-
-        elif command == "target_temperature_low":
-            temp = float(payload)
-            await self._update_shared_value(serial, shared_obj, "target_temperature_low", temp)
-
-        elif command == "target_temperature_high":
-            temp = float(payload)
-            await self._update_shared_value(serial, shared_obj, "target_temperature_high", temp)
-
-        elif command == "fan_mode":
-            if payload.lower() == "on":
-                # Use stored fan duration preference (default 60 minutes)
-                duration_minutes = device_obj.value.get("fan_timer_duration_minutes", 60)
-                timeout_timestamp = int(time.time()) + (duration_minutes * 60)
-                await self._update_device_fields(
+        try:
+            if command == "mode":
+                await execute_command(
+                    self._state_service,
+                    self._subscription_manager,
                     serial,
-                    device_obj,
-                    {
-                        "fan_control_state": True,
-                        "fan_timer_active": True,
-                        "fan_timer_timeout": timeout_timestamp,
-                    },
+                    "set_mode",
+                    payload,
                 )
-            else:
-                await self._update_device_fields(
+
+            elif command == "target_temperature":
+                temp = float(payload)
+                await execute_command(
+                    self._state_service,
+                    self._subscription_manager,
                     serial,
-                    device_obj,
-                    {
-                        "fan_control_state": False,
-                        "fan_timer_active": False,
-                        "fan_timer_timeout": 0,
-                    },
+                    "set_temperature",
+                    temp,
                 )
 
-        elif command == "preset":
-            if payload.lower() == HaPreset.AWAY:
-                await self._update_device_fields(
+            elif command == "target_temperature_low":
+                temp = float(payload)
+                await execute_command(
+                    self._state_service,
+                    self._subscription_manager,
                     serial,
-                    device_obj,
-                    {
-                        "auto_away": 2,
-                        "away": True,
-                    },
+                    "set_temperature",
+                    {"low": temp},
                 )
-            elif payload.lower() == HaPreset.HOME:
-                await self._update_device_fields(
+
+            elif command == "target_temperature_high":
+                temp = float(payload)
+                await execute_command(
+                    self._state_service,
+                    self._subscription_manager,
                     serial,
-                    device_obj,
-                    {
-                        "auto_away": 0,
-                        "away": False,
-                    },
-                )
-            elif payload.lower() == HaPreset.ECO:
-                await self._update_device_value(
-                    serial, device_obj, "eco", {"mode": NestEcoMode.MANUAL, "leaf": True}
+                    "set_temperature",
+                    {"high": temp},
                 )
 
-        elif command == "fan_duration":
-            # Store the fan duration preference
-            try:
-                duration_minutes = int(float(payload))
-                # Clamp to valid range (15-1440 minutes = 15min to 24 hours)
-                duration_minutes = max(15, min(1440, duration_minutes))
-
-                # Store the preference
-                await self._update_device_value(
-                    serial, device_obj, "fan_timer_duration_minutes", duration_minutes
+            elif command == "fan_mode":
+                await execute_command(
+                    self._state_service,
+                    self._subscription_manager,
+                    serial,
+                    "set_fan",
+                    payload.lower(),
                 )
 
-                # If fan is currently running, update the timer to use new duration
-                current_timeout = device_obj.value.get("fan_timer_timeout", 0)
-                now_seconds = int(time.time())
-                if current_timeout > now_seconds:
-                    # Fan is active, update the timeout
-                    new_timeout = now_seconds + (duration_minutes * 60)
-                    await self._update_device_value(
-                        serial, device_obj, "fan_timer_timeout", new_timeout
+            elif command == "preset":
+                if payload.lower() == HaPreset.AWAY:
+                    await self._update_device_fields(
+                        serial,
+                        device_obj,
+                        {
+                            "auto_away": 2,
+                            "away": True,
+                        },
                     )
-            except (ValueError, TypeError):
-                logger.warning(f"Invalid fan duration value: {payload}")
+                elif payload.lower() == HaPreset.HOME:
+                    await self._update_device_fields(
+                        serial,
+                        device_obj,
+                        {
+                            "auto_away": 0,
+                            "away": False,
+                        },
+                    )
+                elif payload.lower() == HaPreset.ECO:
+                    await self._update_device_value(
+                        serial, device_obj, "eco", {"mode": NestEcoMode.MANUAL, "leaf": True}
+                    )
 
-        else:
-            logger.warning(f"Unknown HA command: {command}")
+            elif command == "fan_duration":
+                # Store the fan duration preference
+                try:
+                    duration_minutes = int(float(payload))
+                    # Clamp to valid range (15-1440 minutes = 15min to 24 hours)
+                    duration_minutes = max(15, min(1440, duration_minutes))
+
+                    # Store the preference
+                    await self._update_device_value(
+                        serial, device_obj, "fan_timer_duration_minutes", duration_minutes
+                    )
+
+                    # If fan is currently running, update the timer to use new duration
+                    current_timeout = device_obj.value.get("fan_timer_timeout", 0)
+                    now_seconds = int(time.time())
+                    if current_timeout > now_seconds:
+                        # Fan is active, update the timeout
+                        new_timeout = now_seconds + (duration_minutes * 60)
+                        await self._update_device_value(
+                            serial, device_obj, "fan_timer_timeout", new_timeout
+                        )
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid fan duration value: {payload}")
+
+            else:
+                logger.warning(f"Unknown HA command: {command}")
+
+        except CommandError as e:
+            logger.warning(f"Command failed for {serial}: {e}")
 
         # Republish state to reflect changes
         if self._ha_discovery and self._active_client:
