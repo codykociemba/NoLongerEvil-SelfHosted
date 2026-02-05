@@ -81,8 +81,8 @@ Configuration is done via environment variables or a `.env` file:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_ORIGIN` | `https://backdoor.nolongerevil.com` | Base URL for device API |
-| `PROXY_PORT` | `443` | Port for device API |
+| `API_ORIGIN` | `http://localhost` | Base URL for thermostat connections |
+| `SERVER_PORT` | `443` | Port for thermostat connections |
 | `CONTROL_PORT` | `8081` | Port for control API |
 | `CERT_DIR` | - | Directory containing TLS certificates |
 | `ENTRY_KEY_TTL_SECONDS` | `3600` | Pairing code expiration (seconds) |
@@ -217,7 +217,7 @@ For production deployments with HTTPS:
 2. Configure the server:
    ```bash
    CERT_DIR=/path/to/certs
-   PROXY_PORT=443
+   SERVER_PORT=443
    ```
 
 3. Mount the certificates in Docker:

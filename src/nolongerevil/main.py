@@ -306,8 +306,8 @@ async def run_server() -> None:
     # Start servers
     proxy_site = web.TCPSite(
         proxy_runner,
-        settings.proxy_host,
-        settings.proxy_port,
+        settings.server_host,
+        settings.server_port,
         ssl_context=ssl_context,
     )
     control_site = web.TCPSite(
@@ -319,7 +319,7 @@ async def run_server() -> None:
     await proxy_site.start()
     await control_site.start()
 
-    logger.info(f"Proxy (device) API started on {settings.proxy_host}:{settings.proxy_port}")
+    logger.info(f"Server started on {settings.server_host}:{settings.server_port}")
     logger.info(f"Control API started on {settings.control_host}:{settings.control_port}")
 
     # Wait for shutdown signal
@@ -354,7 +354,7 @@ def main() -> None:
     """Main entry point."""
     logger.info("Starting NoLongerEvil server...")
     logger.info(f"API Origin: {settings.api_origin}")
-    logger.info(f"Proxy Port: {settings.proxy_port}")
+    logger.info(f"Server Port: {settings.server_port}")
     logger.info(f"Control Port: {settings.control_port}")
     logger.info(
         f"Timing: suspend_time_max={settings.suspend_time_max}s (device sleep), "

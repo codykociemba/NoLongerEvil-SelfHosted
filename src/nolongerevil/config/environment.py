@@ -19,16 +19,16 @@ class Settings(BaseSettings):
 
     # Server configuration
     api_origin: str = Field(
-        default="https://backdoor.nolongerevil.com",
-        description="API URL for device communication",
+        default="http://localhost",
+        description="Base URL for thermostat connections",
     )
-    proxy_host: str = Field(
+    server_host: str = Field(
         default="0.0.0.0",
-        description="Host/IP to bind device API server",
+        description="Host/IP to bind the server",
     )
-    proxy_port: int = Field(
+    server_port: int = Field(
         default=443,
-        description="Port for device API (Nest protocol emulation)",
+        description="Port for thermostat connections",
     )
     control_host: str = Field(
         default="0.0.0.0",
@@ -150,7 +150,7 @@ class Settings(BaseSettings):
         """
         parsed = urlparse(self.api_origin)
         if parsed.port is None:
-            netloc = f"{parsed.hostname}:{self.proxy_port}"
+            netloc = f"{parsed.hostname}:{self.server_port}"
             return urlunparse(parsed._replace(netloc=netloc))
         return self.api_origin
 

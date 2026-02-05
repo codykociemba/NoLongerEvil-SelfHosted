@@ -16,8 +16,8 @@ services:
       # - ./certs:/app/certs:ro
     environment:
       # Server configuration
-      - API_ORIGIN=https://backdoor.nolongerevil.com
-      - PROXY_PORT=80
+      - API_ORIGIN=http://localhost
+      - SERVER_PORT=80
       - CONTROL_PORT=8081
 
       # TLS configuration (uncomment if using certificates)
@@ -31,10 +31,13 @@ services:
 
       # Subscription configuration
       - MAX_SUBSCRIPTIONS_PER_DEVICE=100
-      # Subscription timing - server responds at 80% of SUSPEND_TIME_MAX
-      # Values above 120s may cause NAT/firewall idle timeouts to drop connections
-      # SUSPEND_TIME_MAX: 30-300 seconds (default 60)
-      # - SUSPEND_TIME_MAX=60
+      # SUSPEND_TIME_MAX: Device sleep duration before fallback wake (default 600s)
+      # Server holds connection for SUSPEND_TIME_MAX + 60s buffer
+      # - SUSPEND_TIME_MAX=600
+      # DEFER_DEVICE_WINDOW: Delay before device sends PUT after local changes
+      # - DEFER_DEVICE_WINDOW=15
+      # DISABLE_DEFER_WINDOW: After server push, disable defer for this duration
+      # - DISABLE_DEFER_WINDOW=60
 
       # Debug configuration
       - DEBUG_LOGGING=false
@@ -47,7 +50,10 @@ services:
       # MQTT configuration (optional)
       # - MQTT_HOST=mqtt-broker
       # - MQTT_PORT=1883
+      # - MQTT_USER=
+      # - MQTT_PASSWORD=
       # - MQTT_TOPIC_PREFIX=nolongerevil
+      # - MQTT_DISCOVERY_PREFIX=homeassistant
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
       interval: 30s
