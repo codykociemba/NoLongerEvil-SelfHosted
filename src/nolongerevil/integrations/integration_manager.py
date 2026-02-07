@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from nolongerevil.integrations.base_integration import BaseIntegration
     from nolongerevil.services.abstract_device_state_manager import AbstractDeviceStateManager
     from nolongerevil.services.device_state_service import DeviceStateService
+    from nolongerevil.services.subscription_manager import SubscriptionManager
 
 logger = get_logger(__name__)
 
@@ -31,15 +32,18 @@ class IntegrationManager:
         self,
         storage: "AbstractDeviceStateManager",
         state_service: "DeviceStateService",
+        subscription_manager: "SubscriptionManager | None" = None,
     ) -> None:
         """Initialize the integration manager.
 
         Args:
             storage: Storage backend for configuration
             state_service: Device state service for state access
+            subscription_manager: Subscription manager for pushing updates to devices
         """
         self._storage = storage
         self._state_service = state_service
+        self._subscription_manager = subscription_manager
         self._integrations: dict[str, BaseIntegration] = {}  # user_id:type -> integration
         self._poll_task: asyncio.Task[None] | None = None
         self._running = False
@@ -113,7 +117,7 @@ class IntegrationManager:
         if config.type == "mqtt":
             from nolongerevil.integrations.mqtt import MqttIntegration
 
-            return MqttIntegration(config, self._state_service)
+            return MqttIntegration(config, self._state_service, self._subscription_manager)
 
         logger.warning(f"Unknown integration type: {config.type}")
         return None

@@ -59,6 +59,9 @@ async def set_temperature(
         # Single temperature
         values = {"target_temperature": float(value)}
 
+    # Set target_change_pending to wake the display
+    values["target_change_pending"] = True
+
     return validate_and_clamp_temperatures(values, bounds, serial)
 
 
@@ -179,6 +182,84 @@ COMMAND_HANDLERS: dict[str, CommandHandler] = {
     "set_eco_temperatures": set_eco_temperatures,
 }
 
+# Object key routing for each command
+COMMAND_OBJECT_KEYS: dict[str, str] = {
+    "set_temperature": "shared",
+    "set_mode": "shared",
+    "set_away": "structure",
+    "set_fan": "device",
+    "set_eco_temperatures": "device",
+}
+
+
+class CommandError(Exception):
+    """Raised when command execution fails."""
+
+    pass
+
+
+async def execute_command(
+    state_service: "DeviceStateService",
+    subscription_manager: "SubscriptionManager",
+    serial: str,
+    command: str,
+    value: Any,
+) -> dict[str, Any]:
+    """Execute a thermostat command and update state.
+
+    This is the core command execution logic shared by HTTP API and MQTT.
+
+    Args:
+        state_service: Device state service
+        subscription_manager: Subscription manager for notifying devices
+        serial: Device serial number
+        command: Command name (e.g., "set_temperature", "set_mode")
+        value: Command value
+
+    Returns:
+        Dict with "object_key" and "values" on success
+
+    Raises:
+        CommandError: If command is unknown or execution fails
+    """
+    handler = COMMAND_HANDLERS.get(command)
+    if not handler:
+        raise CommandError(f"Unknown command: {command}")
+
+    # Execute command handler to get values
+    values = await handler(state_service, serial, value)
+    if not values:
+        raise CommandError("No values to update")
+
+    # Determine target object key based on command type
+    key_type = COMMAND_OBJECT_KEYS.get(command, "device")
+    if key_type == "structure":
+        shared_obj = state_service.get_object(serial, f"shared.{serial}")
+        structure_id = shared_obj.value.get("structure_id") if shared_obj else None
+        object_key = f"structure.{structure_id}" if structure_id else f"shared.{serial}"
+    elif key_type == "shared":
+        object_key = f"shared.{serial}"
+    else:
+        object_key = f"device.{serial}"
+
+    # Update state
+    existing_obj = state_service.get_object(serial, object_key)
+    new_revision = (existing_obj.object_revision if existing_obj else 0) + 1
+    updated_obj = await state_service.merge_object_values(
+        serial=serial,
+        object_key=object_key,
+        values=values,
+        revision=new_revision,
+        timestamp=int(time.time() * 1000),
+    )
+
+    # Notify subscribers
+    await subscription_manager.notify_all_subscribers(serial, [updated_obj])
+
+    logger.info(f"Command {command} executed for device {serial}")
+
+    return {"object_key": updated_obj.object_key, "values": values}
+
 
 async def handle_command(request: web.Request) -> web.Response:
     """Handle POST /command - send command to thermostat.
@@ -217,60 +298,20 @@ async def handle_command(request: web.Request) -> web.Response:
             status=400,
         )
 
-    handler = COMMAND_HANDLERS.get(command)
-    if not handler:
-        return web.json_response(
-            {"success": False, "message": f"Unknown command: {command}"},
-            status=400,
-        )
-
     state_service: DeviceStateService = request.app["state_service"]
     subscription_manager: SubscriptionManager = request.app["subscription_manager"]
 
     try:
-        # Execute command handler
-        values = await handler(state_service, serial, value)
-
-        if not values:
-            return web.json_response(
-                {"success": False, "message": "No values to update"},
-                status=400,
-            )
-
-        # Determine target object key
-        if command == "set_away":
-            # Away mode is set on structure object
-            shared_obj = state_service.get_object(serial, f"shared.{serial}")
-            structure_id = shared_obj.value.get("structure_id") if shared_obj else None
-            object_key = f"structure.{structure_id}" if structure_id else f"shared.{serial}"
-        else:
-            object_key = f"device.{serial}"
-
-        # Update state
-        now = int(time.time())
-        updated_obj = await state_service.merge_object_values(
-            serial=serial,
-            object_key=object_key,
-            values=values,
-            revision=now,
-            timestamp=now,
+        result = await execute_command(
+            state_service, subscription_manager, serial, command, value
         )
+        return web.json_response({"success": True, "data": result})
 
-        # Notify subscribers
-        await subscription_manager.notify_subscribers(serial, [updated_obj])
-
-        logger.info(f"Command {command} executed for device {serial}")
-
+    except CommandError as e:
         return web.json_response(
-            {
-                "success": True,
-                "data": {
-                    "object_key": updated_obj.object_key,
-                    "values": values,
-                },
-            }
+            {"success": False, "message": str(e)},
+            status=400,
         )
-
     except Exception as e:
         logger.error(f"Command {command} failed for device {serial}: {e}")
         return web.json_response(

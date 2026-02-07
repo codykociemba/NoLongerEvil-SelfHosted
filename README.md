@@ -11,7 +11,7 @@ A self-hosted server implementation for Nest thermostats, written in Python. Thi
 ## Features
 
 - **Full Nest Protocol Support**: Emulates Nest cloud API endpoints for seamless device communication
-- **Dual-Port Architecture**: Separate APIs for device communication (proxy) and dashboard/automation (control)
+- **Dual-Port Architecture**: Separate APIs for thermostat communication and dashboard/automation
 - **Long-Polling Subscriptions**: Real-time device state updates without constant polling
 - **Temperature Safety Bounds**: Configurable min/max temperature limits to prevent extreme settings
 - **Device Availability Tracking**: Monitor device connectivity with automatic timeout detection
@@ -81,14 +81,15 @@ Configuration is done via environment variables or a `.env` file:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_ORIGIN` | `https://backdoor.nolongerevil.com` | Base URL for device API |
-| `PROXY_PORT` | `443` | Port for device API |
+| `API_ORIGIN` | `http://localhost` | Base URL for thermostat connections |
+| `SERVER_PORT` | `443` | Port for thermostat connections |
 | `CONTROL_PORT` | `8081` | Port for control API |
 | `CERT_DIR` | - | Directory containing TLS certificates |
 | `ENTRY_KEY_TTL_SECONDS` | `3600` | Pairing code expiration (seconds) |
 | `WEATHER_CACHE_TTL_MS` | `600000` | Weather cache duration (ms) |
-| `SUBSCRIPTION_TIMEOUT_MS` | `0` | Long-poll timeout (0 = infinite) |
 | `MAX_SUBSCRIPTIONS_PER_DEVICE` | `100` | Max concurrent subscriptions |
+| `SUSPEND_TIME_MAX` | `600` | Device sleep duration before fallback wake (seconds) |
+| `DEFER_DEVICE_WINDOW` | `15` | Delay before device sends updates after local changes (seconds) |
 | `DEBUG_LOGGING` | `false` | Enable debug logging |
 | `SQLITE3_DB_PATH` | `./data/database.sqlite` | Database file path |
 
@@ -96,14 +97,18 @@ Configuration is done via environment variables or a `.env` file:
 
 To enable MQTT integration for Home Assistant:
 
-| Variable | Description |
-|----------|-------------|
-| `MQTT_BROKER_URL` | MQTT broker URL (e.g., `mqtt://localhost:1883`) |
-| `MQTT_TOPIC_PREFIX` | Topic prefix (default: `nolongerevil`) |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MQTT_HOST` | - | MQTT broker hostname (required to enable MQTT) |
+| `MQTT_PORT` | `1883` | MQTT broker port |
+| `MQTT_USER` | - | MQTT username (optional) |
+| `MQTT_PASSWORD` | - | MQTT password (optional) |
+| `MQTT_TOPIC_PREFIX` | `nolongerevil` | Prefix for MQTT topics |
+| `MQTT_DISCOVERY_PREFIX` | `homeassistant` | Home Assistant discovery prefix |
 
 ## API Reference
 
-### Device API (Proxy Port)
+### Device API (Server Port)
 
 These endpoints emulate Nest cloud services:
 
@@ -217,7 +222,7 @@ For production deployments with HTTPS:
 2. Configure the server:
    ```bash
    CERT_DIR=/path/to/certs
-   PROXY_PORT=443
+   SERVER_PORT=443
    ```
 
 3. Mount the certificates in Docker:

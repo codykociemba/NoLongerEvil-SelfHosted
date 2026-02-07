@@ -268,7 +268,7 @@ async def run_server() -> None:
     device_availability.initialize_from_serials(known_serials)
 
     # Initialize integration manager
-    integration_manager = IntegrationManager(storage, state_service)
+    integration_manager = IntegrationManager(storage, state_service, subscription_manager)
     state_service.set_integration_manager(integration_manager)
     device_availability.set_integration_manager(integration_manager)
 
@@ -293,8 +293,11 @@ async def run_server() -> None:
     # Get SSL context
     ssl_context = get_ssl_context()
 
-    # Create runners
-    proxy_runner = web.AppRunner(proxy_app)
+    # Create runners with extended keepalive timeout for long-lived connections
+    # Must be > suspend_time_max (default 600s) to avoid premature connection closure
+    # Server idle timeout must exceed X-nl-suspend-time-max sent to device
+    keepalive_timeout = int(settings.connection_hold_timeout) + 60  # Extra buffer
+    proxy_runner = web.AppRunner(proxy_app, keepalive_timeout=keepalive_timeout)
     control_runner = web.AppRunner(control_app)
 
     await proxy_runner.setup()
@@ -303,8 +306,8 @@ async def run_server() -> None:
     # Start servers
     proxy_site = web.TCPSite(
         proxy_runner,
-        settings.proxy_host,
-        settings.proxy_port,
+        settings.server_host,
+        settings.server_port,
         ssl_context=ssl_context,
     )
     control_site = web.TCPSite(
@@ -316,7 +319,7 @@ async def run_server() -> None:
     await proxy_site.start()
     await control_site.start()
 
-    logger.info(f"Proxy (device) API started on {settings.proxy_host}:{settings.proxy_port}")
+    logger.info(f"Server started on {settings.server_host}:{settings.server_port}")
     logger.info(f"Control API started on {settings.control_host}:{settings.control_port}")
 
     # Wait for shutdown signal
@@ -351,8 +354,13 @@ def main() -> None:
     """Main entry point."""
     logger.info("Starting NoLongerEvil server...")
     logger.info(f"API Origin: {settings.api_origin}")
-    logger.info(f"Proxy Port: {settings.proxy_port}")
+    logger.info(f"Server Port: {settings.server_port}")
     logger.info(f"Control Port: {settings.control_port}")
+    logger.info(
+        f"Timing: suspend_time_max={settings.suspend_time_max}s (device sleep), "
+        f"connection_hold={settings.connection_hold_timeout}s (server hold), "
+        f"defer_device_window={settings.defer_device_window}s"
+    )
 
     try:
         asyncio.run(run_server())
