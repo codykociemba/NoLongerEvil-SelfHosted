@@ -148,7 +148,10 @@ async def handle_register(request: web.Request) -> web.Response:
         existing_structure = state_service.get_object(serial, structure_key)
         if existing_structure:
             new_rev = existing_structure.object_revision + 1
-            structure_value = {**existing_structure.value, "devices": list(set(existing_structure.value.get("devices", []) + [serial]))}
+            structure_value = {
+                **existing_structure.value,
+                "devices": list(set(existing_structure.value.get("devices", []) + [serial])),
+            }
         else:
             new_rev = 1
             structure_value = {
@@ -173,7 +176,9 @@ async def handle_register(request: web.Request) -> web.Response:
         if notified:
             logger.info(f"Pushed user + structure buckets to {notified} subscriber(s) for {serial}")
         else:
-            logger.info(f"No active subscribers for {serial} - buckets will be included on next subscribe")
+            logger.info(
+                f"No active subscribers for {serial} - buckets will be included on next subscribe"
+            )
     else:
         logger.warning("state_service or subscription_manager not available for pairing completion")
 

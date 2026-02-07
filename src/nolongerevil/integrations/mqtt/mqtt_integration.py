@@ -215,7 +215,9 @@ class MqttIntegration(BaseIntegration):
             return
 
         if not self._subscription_manager:
-            logger.warning(f"Cannot execute command '{command}' for {serial}: no subscription manager")
+            logger.warning(
+                f"Cannot execute command '{command}' for {serial}: no subscription manager"
+            )
             return
 
         try:

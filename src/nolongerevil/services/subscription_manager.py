@@ -114,9 +114,7 @@ class SubscriptionManager:
             if subscription.id in device_subs:
                 del device_subs[subscription.id]
                 self._last_subscription_end[subscription.serial] = time.monotonic()
-                logger.debug(
-                    f"Removed subscription {subscription.id} for {subscription.serial}"
-                )
+                logger.debug(f"Removed subscription {subscription.id} for {subscription.serial}")
 
             if not device_subs and subscription.serial in self._long_poll_subscriptions:
                 del self._long_poll_subscriptions[subscription.serial]

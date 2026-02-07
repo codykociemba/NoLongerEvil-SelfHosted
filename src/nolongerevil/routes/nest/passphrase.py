@@ -105,10 +105,12 @@ async def handle_passphrase(request: web.Request) -> web.Response:
     if existing_key and not existing_key.claimed_by and existing_key.expires_at > datetime.now(UTC):
         expires_ms = int(existing_key.expires_at.timestamp() * 1000)
         logger.debug(f"Returning existing entry key for {serial}: {existing_key.code}")
-        return web.json_response({
-            "value": existing_key.code,
-            "expires": expires_ms,  # Must be NUMBER, not string
-        })
+        return web.json_response(
+            {
+                "value": existing_key.code,
+                "expires": expires_ms,  # Must be NUMBER, not string
+            }
+        )
 
     # No valid key exists, generate new one
     entry_key = await state_service.storage.generate_entry_key(serial, ttl)
@@ -141,10 +143,12 @@ async def handle_passphrase(request: web.Request) -> web.Response:
         await state_service.upsert_object(pairing_dialog)
         logger.info(f"Created pairing dialog for {serial}")
 
-    return web.json_response({
-        "value": entry_key.get("code"),
-        "expires": entry_key.get("expiresAt"),  # Must be NUMBER, not string
-    })
+    return web.json_response(
+        {
+            "value": entry_key.get("code"),
+            "expires": entry_key.get("expiresAt"),  # Must be NUMBER, not string
+        }
+    )
 
 
 def create_passphrase_routes(

@@ -111,9 +111,7 @@ def build_climate_discovery_payload(
     return payload
 
 
-def build_temperature_sensor_discovery(
-    serial: str, topic_prefix: str
-) -> dict[str, Any]:
+def build_temperature_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     """Build Home Assistant discovery payload for temperature sensor."""
     return {
         "unique_id": f"nolongerevil_{serial}_temperature",
@@ -153,9 +151,7 @@ def build_humidity_sensor_discovery(serial: str, topic_prefix: str) -> dict[str,
     }
 
 
-def build_outdoor_temperature_sensor_discovery(
-    serial: str, topic_prefix: str
-) -> dict[str, Any]:
+def build_outdoor_temperature_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     """Build Home Assistant discovery payload for outdoor temperature sensor."""
     return {
         "unique_id": f"nolongerevil_{serial}_outdoor_temperature",
@@ -175,9 +171,7 @@ def build_outdoor_temperature_sensor_discovery(
     }
 
 
-def build_occupancy_binary_sensor_discovery(
-    serial: str, topic_prefix: str
-) -> dict[str, Any]:
+def build_occupancy_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     """Build Home Assistant discovery payload for occupancy binary sensor."""
     return {
         "unique_id": f"nolongerevil_{serial}_occupancy",
@@ -217,9 +211,7 @@ def build_fan_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[st
     }
 
 
-def build_leaf_binary_sensor_discovery(
-    serial: str, topic_prefix: str
-) -> dict[str, Any]:
+def build_leaf_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     """Build Home Assistant discovery payload for leaf (eco) binary sensor."""
     return {
         "unique_id": f"nolongerevil_{serial}_leaf",
@@ -375,9 +367,7 @@ def build_sunlight_correction_binary_sensor_discovery(
     }
 
 
-def build_compressor_lockout_sensor_discovery(
-    serial: str, topic_prefix: str
-) -> dict[str, Any]:
+def build_compressor_lockout_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     """Build Home Assistant discovery payload for compressor lockout sensor."""
     return {
         "unique_id": f"nolongerevil_{serial}_compressor_lockout",
@@ -398,9 +388,7 @@ def build_compressor_lockout_sensor_discovery(
     }
 
 
-def build_learning_mode_binary_sensor_discovery(
-    serial: str, topic_prefix: str
-) -> dict[str, Any]:
+def build_learning_mode_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     """Build Home Assistant discovery payload for learning mode sensor."""
     return {
         "unique_id": f"nolongerevil_{serial}_learning_mode",
@@ -464,9 +452,7 @@ def build_local_ip_sensor_discovery(serial: str, topic_prefix: str) -> dict[str,
     }
 
 
-def build_fan_timer_remaining_sensor_discovery(
-    serial: str, topic_prefix: str
-) -> dict[str, Any]:
+def build_fan_timer_remaining_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     """Build Home Assistant discovery payload for fan timer remaining sensor."""
     return {
         "unique_id": f"nolongerevil_{serial}_fan_timer_remaining",
@@ -486,9 +472,7 @@ def build_fan_timer_remaining_sensor_discovery(
     }
 
 
-def build_fan_duration_number_discovery(
-    serial: str, topic_prefix: str
-) -> dict[str, Any]:
+def build_fan_duration_number_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     """Build Home Assistant discovery payload for fan duration number entity."""
     return {
         "unique_id": f"nolongerevil_{serial}_fan_duration",
@@ -552,12 +536,8 @@ def get_all_discovery_configs(
     configs.append((humidity_topic, humidity_payload))
 
     # Outdoor temperature sensor
-    outdoor_temp_topic = (
-        f"{discovery_prefix}/sensor/nest_{serial}/outdoor_temperature/config"
-    )
-    outdoor_temp_payload = build_outdoor_temperature_sensor_discovery(
-        serial, topic_prefix
-    )
+    outdoor_temp_topic = f"{discovery_prefix}/sensor/nest_{serial}/outdoor_temperature/config"
+    outdoor_temp_payload = build_outdoor_temperature_sensor_discovery(serial, topic_prefix)
     configs.append((outdoor_temp_topic, outdoor_temp_payload))
 
     # Occupancy binary sensor
@@ -595,53 +575,33 @@ def get_all_discovery_configs(
     configs.append((filter_replacement_topic, filter_replacement_payload))
 
     # Filter runtime sensor
-    filter_runtime_topic = (
-        f"{discovery_prefix}/sensor/nest_{serial}/filter_runtime/config"
-    )
+    filter_runtime_topic = f"{discovery_prefix}/sensor/nest_{serial}/filter_runtime/config"
     filter_runtime_payload = build_filter_runtime_sensor_discovery(serial, topic_prefix)
     configs.append((filter_runtime_topic, filter_runtime_payload))
 
     # Time to target sensor
-    time_to_target_topic = (
-        f"{discovery_prefix}/sensor/nest_{serial}/time_to_target/config"
-    )
+    time_to_target_topic = f"{discovery_prefix}/sensor/nest_{serial}/time_to_target/config"
     time_to_target_payload = build_time_to_target_sensor_discovery(serial, topic_prefix)
     configs.append((time_to_target_topic, time_to_target_payload))
 
     # Sunlight correction active binary sensor
-    sunlight_topic = (
-        f"{discovery_prefix}/binary_sensor/nest_{serial}/sunlight_correction/config"
-    )
-    sunlight_payload = build_sunlight_correction_binary_sensor_discovery(
-        serial, topic_prefix
-    )
+    sunlight_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/sunlight_correction/config"
+    sunlight_payload = build_sunlight_correction_binary_sensor_discovery(serial, topic_prefix)
     configs.append((sunlight_topic, sunlight_payload))
 
     # Compressor lockout sensor
-    compressor_lockout_topic = (
-        f"{discovery_prefix}/sensor/nest_{serial}/compressor_lockout/config"
-    )
-    compressor_lockout_payload = build_compressor_lockout_sensor_discovery(
-        serial, topic_prefix
-    )
+    compressor_lockout_topic = f"{discovery_prefix}/sensor/nest_{serial}/compressor_lockout/config"
+    compressor_lockout_payload = build_compressor_lockout_sensor_discovery(serial, topic_prefix)
     configs.append((compressor_lockout_topic, compressor_lockout_payload))
 
     # Learning mode binary sensor
-    learning_mode_topic = (
-        f"{discovery_prefix}/binary_sensor/nest_{serial}/learning_mode/config"
-    )
-    learning_mode_payload = build_learning_mode_binary_sensor_discovery(
-        serial, topic_prefix
-    )
+    learning_mode_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/learning_mode/config"
+    learning_mode_payload = build_learning_mode_binary_sensor_discovery(serial, topic_prefix)
     configs.append((learning_mode_topic, learning_mode_payload))
 
     # Heat pump ready binary sensor
-    heat_pump_ready_topic = (
-        f"{discovery_prefix}/binary_sensor/nest_{serial}/heat_pump_ready/config"
-    )
-    heat_pump_ready_payload = build_heat_pump_ready_binary_sensor_discovery(
-        serial, topic_prefix
-    )
+    heat_pump_ready_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/heat_pump_ready/config"
+    heat_pump_ready_payload = build_heat_pump_ready_binary_sensor_discovery(serial, topic_prefix)
     configs.append((heat_pump_ready_topic, heat_pump_ready_payload))
 
     # Local IP sensor
@@ -650,9 +610,7 @@ def get_all_discovery_configs(
     configs.append((local_ip_topic, local_ip_payload))
 
     # Fan timer remaining sensor
-    fan_timer_topic = (
-        f"{discovery_prefix}/sensor/nest_{serial}/fan_timer_remaining/config"
-    )
+    fan_timer_topic = f"{discovery_prefix}/sensor/nest_{serial}/fan_timer_remaining/config"
     fan_timer_payload = build_fan_timer_remaining_sensor_discovery(serial, topic_prefix)
     configs.append((fan_timer_topic, fan_timer_payload))
 

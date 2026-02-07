@@ -302,9 +302,7 @@ async def handle_command(request: web.Request) -> web.Response:
     subscription_manager: SubscriptionManager = request.app["subscription_manager"]
 
     try:
-        result = await execute_command(
-            state_service, subscription_manager, serial, command, value
-        )
+        result = await execute_command(state_service, subscription_manager, serial, command, value)
         return web.json_response({"success": True, "data": result})
 
     except CommandError as e:

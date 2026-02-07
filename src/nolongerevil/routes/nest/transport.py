@@ -59,12 +59,33 @@ def parse_object_key(object_key: str) -> tuple[str, str]:
 
 # Known bucket types from Nest protocol
 KNOWN_BUCKET_TYPES = {
-    "device", "shared", "structure", "schedule", "custom_schedule", "user",
-    "topaz", "demand_response", "demand_response_event", "where", "kryptonite",
-    "diagnostics", "device_alert_dialog", "servicegroup", "link", "message",
-    "tuneups", "utility", "diamond_sensor_config", "diamond_sensor_event",
-    "rate_plan", "tou", "demand_charge", "demand_charge_event", "hvac_partner",
-    "rcs_settings", "cloud_algo",
+    "device",
+    "shared",
+    "structure",
+    "schedule",
+    "custom_schedule",
+    "user",
+    "topaz",
+    "demand_response",
+    "demand_response_event",
+    "where",
+    "kryptonite",
+    "diagnostics",
+    "device_alert_dialog",
+    "servicegroup",
+    "link",
+    "message",
+    "tuneups",
+    "utility",
+    "diamond_sensor_config",
+    "diamond_sensor_event",
+    "rate_plan",
+    "tou",
+    "demand_charge",
+    "demand_charge_event",
+    "hvac_partner",
+    "rcs_settings",
+    "cloud_algo",
 }
 
 
@@ -143,12 +164,14 @@ def parse_put_body(body: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
         if isinstance(value, dict) and "object_key" in value:
             # Extract inline fields into value dict (excluding metadata)
             inline_value = {k: v for k, v in value.items() if k not in metadata_fields}
-            objects.append({
-                "object_key": value["object_key"],
-                "base_object_revision": value.get("base_object_revision"),
-                "if_object_revision": value.get("if_object_revision"),
-                "value": inline_value if inline_value else None,
-            })
+            objects.append(
+                {
+                    "object_key": value["object_key"],
+                    "base_object_revision": value.get("base_object_revision"),
+                    "if_object_revision": value.get("if_object_revision"),
+                    "value": inline_value if inline_value else None,
+                }
+            )
 
     return session, objects
 
@@ -486,9 +509,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
             # User bucket — triggers pairing completion via "name" field.
             # Only send if device doesn't already have the latest version.
             user_key = f"user.{owner.user_id}"
-            has_user_in_outdated = any(
-                obj.object_key == user_key for obj in outdated_objects
-            )
+            has_user_in_outdated = any(obj.object_key == user_key for obj in outdated_objects)
             if not has_user_in_outdated:
                 user_obj = state_service.get_object(serial, user_key)
                 if not user_obj:
@@ -517,9 +538,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
             # Structure bucket — establishes device-home association
             structure_id = derive_structure_id(owner.user_id)
             structure_key = f"structure.{structure_id}"
-            has_structure = any(
-                obj.object_key == structure_key for obj in outdated_objects
-            )
+            has_structure = any(obj.object_key == structure_key for obj in outdated_objects)
             if not has_structure:
                 structure_obj = state_service.get_object(serial, structure_key)
                 if not structure_obj:
@@ -535,18 +554,24 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                         updated_at=datetime.now(),
                     )
                     await state_service.upsert_object(structure_obj)
-                    logger.info(f"Created structure bucket {structure_key} for paired device {serial}")
+                    logger.info(
+                        f"Created structure bucket {structure_key} for paired device {serial}"
+                    )
 
                 # Check if device already has this version
                 client_structure = next(
                     (o for o in processed_client_objects if o.get("object_key") == structure_key),
                     None,
                 )
-                client_struct_ts = client_structure.get("object_timestamp", 0) if client_structure else 0
+                client_struct_ts = (
+                    client_structure.get("object_timestamp", 0) if client_structure else 0
+                )
 
                 if client_struct_ts < structure_obj.object_timestamp:
                     outdated_objects.append(structure_obj)
-                    logger.debug(f"Including structure bucket {structure_key} for paired device {serial}")
+                    logger.debug(
+                        f"Including structure bucket {structure_key} for paired device {serial}"
+                    )
 
     # =========================================================================
     # Response handling - chunked vs non-chunked mode
@@ -608,9 +633,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     # If we have outdated objects, send them immediately
     if outdated_objects:
         formatted_objs = [format_object_for_response(obj) for obj in outdated_objects]
-        logger.debug(
-            f"Sending {len(outdated_objects)} outdated object(s) immediately for {serial}"
-        )
+        logger.debug(f"Sending {len(outdated_objects)} outdated object(s) immediately for {serial}")
         body_data = json.dumps({"objects": formatted_objs}).encode("utf-8")
         await response.write(body_data)
         await response.write_eof()
@@ -647,7 +670,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                 timeout=settings.connection_hold_timeout,
             )
             # Real data arrived - send it to wake the device
-            logger.debug(f"Subscription {subscription.id}: pushing {len(changed_objects)} objects to wake device")
+            logger.debug(
+                f"Subscription {subscription.id}: pushing {len(changed_objects)} objects to wake device"
+            )
             body_bytes = json.dumps({"objects": changed_objects}).encode("utf-8")
             await response.write(body_bytes)
             data_sent = True
@@ -682,7 +707,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
             await response.write_eof()
             logger.debug(f"Subscription {subscription.id}: write_eof completed for {serial}")
         except (ConnectionResetError, ConnectionError) as e:
-            logger.info(f"Subscription {subscription.id}: write_eof failed ({type(e).__name__}): {e}")
+            logger.info(
+                f"Subscription {subscription.id}: write_eof failed ({type(e).__name__}): {e}"
+            )
 
     return response
 
@@ -818,13 +845,17 @@ async def handle_transport_put(request: web.Request) -> web.Response:
         # Check if shared wasn't already in response
         shared_keys_in_response = [obj.get("object_key") for obj in response_objects]
         if shared_key not in shared_keys_in_response:
-            response_objects.append({
-                "object_key": shared_obj.object_key,
-                "object_revision": shared_obj.object_revision,
-                "object_timestamp": shared_obj.object_timestamp,
-                "value": shared_obj.value,
-            })
-            logger.debug(f"PUT: Added shared.{serial} to response (rev={shared_obj.object_revision})")
+            response_objects.append(
+                {
+                    "object_key": shared_obj.object_key,
+                    "object_revision": shared_obj.object_revision,
+                    "object_timestamp": shared_obj.object_timestamp,
+                    "value": shared_obj.value,
+                }
+            )
+            logger.debug(
+                f"PUT: Added shared.{serial} to response (rev={shared_obj.object_revision})"
+            )
 
     return web.json_response(
         {"objects": response_objects},

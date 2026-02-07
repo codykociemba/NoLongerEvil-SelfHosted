@@ -27,12 +27,10 @@ TIER_PENDING = "pending"
 TIER_UNKNOWN = "unknown"
 
 
-def create_device_auth_middleware() -> (
-    Callable[
-        [web.Request, Callable[[web.Request], Awaitable[web.StreamResponse]]],
-        Awaitable[web.StreamResponse],
-    ]
-):
+def create_device_auth_middleware() -> Callable[
+    [web.Request, Callable[[web.Request], Awaitable[web.StreamResponse]]],
+    Awaitable[web.StreamResponse],
+]:
     """Create middleware that authenticates devices against the ownership database.
 
     Three-tier model:
@@ -60,7 +58,9 @@ def create_device_auth_middleware() -> (
 
         # Gate transport POSTs (subscribe, PUT) and uploads.
         # Everything else (entry, passphrase, ping, weather, device GET, control API) passes through.
-        is_gated = ("/nest/transport" in path and request.method == "POST") or "/nest/upload" in path
+        is_gated = (
+            "/nest/transport" in path and request.method == "POST"
+        ) or "/nest/upload" in path
         if not is_gated:
             return await handler(request)
 
