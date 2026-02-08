@@ -308,8 +308,10 @@
     .eco-btn .mdi { font-size: 14px; }
     .eco-btn:hover { border-color: var(--text3); color: var(--text2); }
     .eco-btn.active { background: #d1fae5; color: #059669; border-color: #a7f3d0; }
+    .eco-btn.auto-eco { color: #b45309; border-color: rgba(180, 83, 9, 0.3); }
     @media (prefers-color-scheme: dark) {
       .eco-btn.active { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
+      .eco-btn.auto-eco { color: #d97706; border-color: rgba(217, 119, 6, 0.25); }
     }
     .fan-seg {
       display: inline-flex; background: var(--bg);
@@ -1300,8 +1302,9 @@
           return '<button class="' + cls + '" onclick="setMode(' + q + ',\'' + apiVal + '\')" title="' + modeTips[m] + '">' + modeLabels[m] + '</button>';
         }).join('');
 
-        // Eco state — use actual eco_mode, not has_leaf/away
+        // Eco state — manual-eco (user set) or auto-eco (occupancy/away)
         const eco = d.eco_mode === 'manual-eco';
+        const autoEco = d.eco_mode === 'auto-eco';
 
         // Fan controls — inline in control row
         const hasFan = cap.has_fan;
@@ -1362,8 +1365,8 @@
           hvacStatusHtml +
           '<div class="card-row-controls">' +
             '<div class="mode-seg">' + modeBtns + '</div>' +
-            '<button class="' + (eco ? 'eco-btn active' : 'eco-btn') + '" onclick="toggleEco(' + q + ',' + eco + ')" title="' + (eco ? 'Eco mode active \u2014 click to resume schedule' : 'Enable eco mode') + '">' +
-              '<i class="mdi mdi-home-export-outline"></i> Eco</button>' +
+            '<button class="' + (eco ? 'eco-btn active' : autoEco ? 'eco-btn auto-eco' : 'eco-btn') + '" onclick="toggleEco(' + q + ',' + (eco || autoEco) + ')" title="' + (eco ? 'Eco mode active \u2014 click to resume schedule' : autoEco ? 'Auto-eco (away detected) \u2014 click to resume schedule' : 'Enable eco mode') + '">' +
+              '<i class="mdi mdi-home-export-outline"></i> Eco' + (autoEco ? '<span style="font-size:7px;opacity:.6;vertical-align:super;margin-left:1px">auto</span>' : '') + '</button>' +
             '<span class="controls-spacer"></span>' +
             fanHtml +
           '</div>' +
