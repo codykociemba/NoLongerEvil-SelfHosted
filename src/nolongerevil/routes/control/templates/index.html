@@ -493,7 +493,6 @@
   <div class="header">
     <h1><i class="mdi mdi-thermostat"></i> NoLongerEvil</h1>
     <div style="display:flex;gap:4px">
-      <button onclick="toggleDemo()" class="btn-icon" id="demoBtn" title="Toggle demo cards"><i class="mdi mdi-test-tube"></i></button>
       <button onclick="loadDevices()" class="btn-icon" title="Refresh"><i class="mdi mdi-refresh"></i></button>
     </div>
   </div>
@@ -523,93 +522,6 @@
   <script>
     const BASE_PATH = document.body.dataset.ingressPath || '';
     const pendingTargets = {};
-    let showDemo = false;
-
-    function getDemoDevices() {
-      const now = Date.now() / 1000;
-      return [
-        {
-          serial: 'DEMO-HEAT-01', name: 'Living Room', is_available: true,
-          current_temperature: 20.5, target_temperature: 22.0,
-          target_temperature_high: null, target_temperature_low: null,
-          humidity: 42, mode: 'heat', eco_mode: null, has_leaf: true,
-          temperature_scale: 'F', time_to_target: 15,
-          fan_timer_active: true, fan_timer_timeout: now + 2400,
-          safety_temp_activating_hvac: false, safety_state: null,
-          hvac: { heater: true, heat_x2: false, heat_x3: false, ac: false, cool_x2: false, cool_x3: false,
-                  fan: true, aux_heat: false, emer_heat: false, alt_heat: false,
-                  humidifier: false, dehumidifier: false, auto_dehum: false, fan_cooling: false },
-          capabilities: { can_heat: true, can_cool: true, has_fan: true, has_emer_heat: false, has_humidifier: false },
-          software_version: '6.2.1-1', learning_mode: true, preconditioning_enabled: true,
-        },
-        {
-          serial: 'DEMO-RANGE-02', name: 'Master Bedroom', is_available: true,
-          current_temperature: 21.0, target_temperature: null,
-          target_temperature_high: 23.5, target_temperature_low: 19.0,
-          humidity: 55, mode: 'range', eco_mode: null, has_leaf: false,
-          temperature_scale: 'F', time_to_target: 0,
-          fan_timer_active: false, fan_timer_timeout: 0,
-          safety_temp_activating_hvac: false, safety_state: null,
-          hvac: { heater: false, heat_x2: false, heat_x3: false, ac: true, cool_x2: false, cool_x3: false,
-                  fan: true, aux_heat: false, emer_heat: false, alt_heat: false,
-                  humidifier: true, dehumidifier: false, auto_dehum: false, fan_cooling: false },
-          capabilities: { can_heat: true, can_cool: true, has_fan: true, has_emer_heat: true, has_humidifier: true },
-          target_humidity: 50, target_humidity_enabled: true,
-          software_version: '6.2.1-1',
-        },
-        {
-          serial: 'DEMO-EMER-03', name: 'Basement', is_available: true,
-          current_temperature: 14.0, target_temperature: 20.0,
-          target_temperature_high: null, target_temperature_low: null,
-          humidity: 38, mode: 'emergency', eco_mode: null, has_leaf: false,
-          temperature_scale: 'F', time_to_target: 0,
-          fan_timer_active: false, fan_timer_timeout: 0,
-          safety_temp_activating_hvac: false, safety_state: null,
-          hvac: { heater: false, heat_x2: false, heat_x3: false, ac: false, cool_x2: false, cool_x3: false,
-                  fan: true, aux_heat: false, emer_heat: true, alt_heat: false,
-                  humidifier: false, dehumidifier: false, auto_dehum: false, fan_cooling: false },
-          capabilities: { can_heat: true, can_cool: false, has_fan: true, has_emer_heat: true, has_humidifier: false },
-          software_version: '6.2.1-1',
-        },
-        {
-          serial: 'DEMO-ECO-04', name: 'Guest Room', is_available: false,
-          last_seen: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
-          current_temperature: 18.0, target_temperature: 20.0,
-          target_temperature_high: null, target_temperature_low: null,
-          humidity: 35, mode: 'heat', eco_mode: 'manual-eco', has_leaf: true,
-          temperature_scale: 'C', time_to_target: 0,
-          fan_timer_active: false, fan_timer_timeout: 0,
-          safety_temp_activating_hvac: false, safety_state: null,
-          hvac: { heater: false, heat_x2: false, heat_x3: false, ac: false, cool_x2: false, cool_x3: false,
-                  fan: false, aux_heat: false, emer_heat: false, alt_heat: false,
-                  humidifier: false, dehumidifier: false, auto_dehum: false, fan_cooling: false },
-          capabilities: { can_heat: true, can_cool: false, has_fan: false, has_emer_heat: false, has_humidifier: false },
-          eco_temperatures: { high: 24.0, low: 4.5 },
-          software_version: '6.2.1-1',
-        },
-        {
-          serial: 'DEMO-SAFE-05', name: 'Attic', is_available: true,
-          current_temperature: 3.5, target_temperature: null,
-          target_temperature_high: null, target_temperature_low: null,
-          humidity: 60, mode: 'off', eco_mode: null, has_leaf: false,
-          temperature_scale: 'F', time_to_target: 0,
-          fan_timer_active: false, fan_timer_timeout: 0,
-          safety_temp_activating_hvac: true, safety_state: 'active',
-          hvac: { heater: true, heat_x2: false, heat_x3: false, ac: false, cool_x2: false, cool_x3: false,
-                  fan: false, aux_heat: false, emer_heat: false, alt_heat: false,
-                  humidifier: false, dehumidifier: false, auto_dehum: false, fan_cooling: false },
-          capabilities: { can_heat: true, can_cool: true, has_fan: true, has_emer_heat: false, has_humidifier: false },
-          software_version: '6.2.1-1',
-        },
-      ];
-    }
-
-    function toggleDemo() {
-      showDemo = !showDemo;
-      document.getElementById('demoBtn').style.color = showDemo ? 'var(--accent)' : '';
-      loadDevices();
-    }
-
     loadDevices();
     // Fallback poll in case SSE disconnects
     setInterval(loadDevices, 30000);
@@ -1383,10 +1295,8 @@
         const r = await fetch(BASE_PATH + '/api/devices');
         const data = await r.json();
         Object.keys(pendingTargets).forEach(k => delete pendingTargets[k]);
-        const real = data.devices || [];
-        renderDevices(showDemo ? real.concat(getDemoDevices()) : real);
+        renderDevices(data.devices || []);
       } catch (err) {
-        if (showDemo) { renderDevices(getDemoDevices()); return; }
         document.getElementById('deviceList').innerHTML =
           '<div class="setup-card"><p class="msg-error">Error loading devices: ' + esc(err.message) + '</p></div>';
       }
