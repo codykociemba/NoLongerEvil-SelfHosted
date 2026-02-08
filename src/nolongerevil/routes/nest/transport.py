@@ -54,6 +54,11 @@ logger = get_logger(__name__)
 # have reset while the cached timestamp persists in flash.
 _structure_sent: set[str] = set()
 
+# After sending the first chunk on a subscribe connection, wait this long for
+# additional data before closing.  Must be under the device's 5-second
+# inter-chunk timeout so the connection never idles out on the device side.
+INTER_CHUNK_BATCH_TIMEOUT = 3.0
+
 
 def parse_object_key(object_key: str) -> tuple[str, str]:
     """Parse an object key into type and serial."""
@@ -705,14 +710,34 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                 timeout=settings.connection_hold_timeout,
             )
             # Real data arrived - send it to wake the device
-            logger.debug(
-                f"Subscription {subscription.id}: pushing {len(changed_objects)} objects to wake device"
-            )
             body_bytes = json.dumps({"objects": changed_objects}).encode("utf-8")
             await response.write(body_bytes)
             data_sent = True
+            total_bytes = len(body_bytes)
+            chunk_count = 1
+            changed_objects = None  # written successfully, clear pending ref
+
+            # Batch loop: hold the connection briefly for additional data.
+            # The device resets its 5s closing timer on each chunk, so we can
+            # safely wait up to INTER_CHUNK_BATCH_TIMEOUT (3s) between chunks.
+            while True:
+                try:
+                    changed_objects = await asyncio.wait_for(
+                        notify_queue.get(),
+                        timeout=INTER_CHUNK_BATCH_TIMEOUT,
+                    )
+                    body_bytes = json.dumps({"objects": changed_objects}).encode("utf-8")
+                    await response.write(body_bytes)
+                    total_bytes += len(body_bytes)
+                    chunk_count += 1
+                    changed_objects = None
+                except TimeoutError:
+                    # No more data within batch window - done
+                    break
+
             logger.info(
-                f"Subscription {subscription.id}: write completed, sent {len(body_bytes)} bytes to {serial}"
+                f"Subscription {subscription.id}: sent {chunk_count} chunk(s), "
+                f"{total_bytes} bytes total to {serial}"
             )
 
         except TimeoutError:
@@ -730,7 +755,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
         # Connection closed by device (it went to sleep) - this is normal
         logger.info(f"Subscription {subscription.id}: connection closed ({type(e).__name__}): {e}")
         # Buffer undelivered data so the next subscribe replays it
-        if changed_objects is not None and not data_sent:
+        if changed_objects is not None:
             await subscription_manager.store_pending_push(serial, changed_objects)
 
     finally:
