@@ -102,7 +102,9 @@ def format_device_status(
             "has_dehumidifier": device_values.get("has_dehumidifier", False),
         },
         # Eco mode state (device bucket)
-        "eco_mode": device_values.get("eco", {}).get("mode") if isinstance(device_values.get("eco"), dict) else None,
+        "eco_mode": device_values.get("eco", {}).get("mode")
+        if isinstance(device_values.get("eco"), dict)
+        else None,
         # Time to target (device bucket)
         "time_to_target": device_values.get("time_to_target"),
         "time_to_target_training_status": device_values.get("time_to_target_training_status"),
@@ -425,7 +427,7 @@ async def handle_sse(request: web.Request) -> web.StreamResponse:
     queue: asyncio.Queue = asyncio.Queue()
     integration_manager = request.app.get("integration_manager")
     if not integration_manager:
-        await resp.write(b"data: {\"error\":\"no integration manager\"}\n\n")
+        await resp.write(b'data: {"error":"no integration manager"}\n\n')
         return resp
 
     async def on_change(change):
