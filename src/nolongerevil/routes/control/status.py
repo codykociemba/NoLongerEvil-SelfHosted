@@ -1,5 +1,7 @@
 """Control API status endpoints - device state inspection."""
 
+import asyncio
+import json
 import time
 from datetime import datetime
 from typing import Any
@@ -79,7 +81,8 @@ def format_device_status(
             "auto_dehum": bool(device_values.get("auto_dehum_state")),
             "fan_cooling": bool(device_values.get("fan_cooling_state")),
         },
-        "fan_timer_active": bool(device_values.get("fan_timer_timeout", 0)),
+        "fan_timer_active": isinstance(device_values.get("fan_timer_timeout", 0), (int, float))
+        and device_values.get("fan_timer_timeout", 0) > time.time(),
         "fan_timer_timeout": device_values.get("fan_timer_timeout", 0),
         "eco_temperatures": {
             "high": device_values.get("away_temperature_high"),
@@ -407,6 +410,41 @@ async def handle_delete_device(request: web.Request) -> web.Response:
         )
 
 
+async def handle_sse(request: web.Request) -> web.StreamResponse:
+    """Handle GET /api/events - Server-Sent Events stream.
+
+    Pushes a lightweight event whenever device state changes,
+    so the UI can refresh without polling.
+    """
+    resp = web.StreamResponse()
+    resp.headers["Content-Type"] = "text/event-stream"
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["X-Accel-Buffering"] = "no"
+    await resp.prepare(request)
+
+    queue: asyncio.Queue = asyncio.Queue()
+    integration_manager = request.app.get("integration_manager")
+    if not integration_manager:
+        await resp.write(b"data: {\"error\":\"no integration manager\"}\n\n")
+        return resp
+
+    async def on_change(change):
+        await queue.put(change.serial)
+
+    integration_manager.add_state_callback(on_change)
+    try:
+        while True:
+            serial = await queue.get()
+            data = json.dumps({"serial": serial})
+            await resp.write(f"data: {data}\n\n".encode())
+    except (asyncio.CancelledError, ConnectionResetError):
+        pass
+    finally:
+        integration_manager.remove_state_callback(on_change)
+
+    return resp
+
+
 def create_status_routes(
     app: web.Application,
     state_service: DeviceStateService,
@@ -428,6 +466,7 @@ def create_status_routes(
     app.router.add_get("/status", handle_status)
     app.router.add_get("/api/devices", handle_devices)
     app.router.add_get("/api/schedule", handle_schedule)
+    app.router.add_get("/api/events", handle_sse)
     app.router.add_post("/notify-device", handle_notify_device)
     app.router.add_get("/api/stats", handle_stats)
     app.router.add_post("/api/dismiss-pairing/{serial}", handle_dismiss_pairing)

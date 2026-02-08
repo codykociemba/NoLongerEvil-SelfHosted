@@ -297,6 +297,7 @@ async def run_server() -> None:
         device_availability,
         storage,
     )
+    control_app["integration_manager"] = integration_manager
 
     # Get SSL context
     ssl_context = get_ssl_context()

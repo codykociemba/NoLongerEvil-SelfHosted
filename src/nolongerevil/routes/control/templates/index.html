@@ -101,63 +101,61 @@
     /* Device card */
     .device-card {
       background: var(--card); border-radius: var(--radius);
-      box-shadow: var(--shadow); padding: 16px 20px;
+      box-shadow: var(--shadow); padding: 12px 16px;
     }
 
     /* Row 1: identity + meta */
     .card-row-top {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 10px;
     }
     .card-identity { display: flex; align-items: center; gap: 10px; }
-    .online-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .online-dot.on { background: #10b981; }
+    .online-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      margin-top: 7px; align-self: flex-start;
+      transition: background 0.3s;
+    }
+    .online-dot.on { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
     .online-dot.off { background: #9ca3af; }
-    .card-identity h3 { font-size: 17px; font-weight: 600; }
+    .card-identity h3 { font-size: 17px; font-weight: 650; letter-spacing: -0.2px; }
     .card-serial {
       font-family: 'SF Mono', SFMono-Regular, Menlo, monospace;
-      font-size: 11px; color: var(--text3);
+      font-size: 10px; color: var(--text3); letter-spacing: 0.3px;
+      margin-top: 1px;
     }
-    .card-last-seen { font-size: 11px; color: var(--text3); font-style: italic; }
-    .card-meta { display: flex; align-items: center; gap: 10px; color: var(--text3); font-size: 13px; }
+    .card-last-seen { font-size: 11px; color: var(--text3); font-style: italic; margin-top: 2px; }
+    .card-meta {
+      display: flex; align-items: center; gap: 8px;
+      color: var(--text3); font-size: 13px; flex-shrink: 0;
+      padding-top: 2px;
+    }
     .card-meta .mdi { font-size: 15px; }
-    /* HVAC card glow effects */
-    .device-card { position: relative; overflow: hidden; transition: box-shadow 0.6s ease; }
+    /* HVAC card glow effects — option D: colored border + soft outer */
+    .device-card { position: relative; overflow: hidden; transition: all 0.6s ease; border: 1.5px solid transparent; }
     .device-card.glow-heat {
-      box-shadow:
-        inset 0 0 20px -4px rgba(249, 115, 22, 0.45),
-        inset 0 0 40px -10px rgba(234, 88, 12, 0.18),
-        0 0 10px -2px rgba(249, 115, 22, 0.25),
-        var(--shadow);
+      border-color: rgba(249, 115, 22, 0.45);
+      box-shadow: 0 0 16px -2px rgba(249, 115, 22, 0.2), var(--shadow);
     }
     .device-card.glow-cool {
-      box-shadow:
-        inset 0 0 20px -4px rgba(59, 130, 246, 0.45),
-        inset 0 0 40px -10px rgba(37, 99, 235, 0.18),
-        0 0 10px -2px rgba(59, 130, 246, 0.25),
-        var(--shadow);
+      border-color: rgba(59, 130, 246, 0.45);
+      box-shadow: 0 0 16px -2px rgba(59, 130, 246, 0.2), var(--shadow);
     }
     .device-card.glow-heat.glow-cool {
-      box-shadow:
-        inset 0 0 20px -4px rgba(168, 85, 247, 0.45),
-        inset 0 0 40px -10px rgba(124, 58, 237, 0.18),
-        0 0 10px -2px rgba(168, 85, 247, 0.25),
-        var(--shadow);
+      border-color: rgba(168, 85, 247, 0.45);
+      box-shadow: 0 0 16px -2px rgba(168, 85, 247, 0.2), var(--shadow);
     }
     @media (prefers-color-scheme: dark) {
       .device-card.glow-heat {
-        box-shadow:
-          inset 0 0 22px -4px rgba(251, 146, 60, 0.55),
-          inset 0 0 45px -10px rgba(234, 88, 12, 0.22),
-          0 0 12px -2px rgba(251, 146, 60, 0.35),
-          var(--shadow);
+        border-color: rgba(251, 146, 60, 0.5);
+        box-shadow: 0 0 16px -2px rgba(251, 146, 60, 0.25), var(--shadow);
       }
       .device-card.glow-cool {
-        box-shadow:
-          inset 0 0 22px -4px rgba(96, 165, 250, 0.55),
-          inset 0 0 45px -10px rgba(59, 130, 246, 0.22),
-          0 0 12px -2px rgba(96, 165, 250, 0.35),
-          var(--shadow);
+        border-color: rgba(96, 165, 250, 0.5);
+        box-shadow: 0 0 16px -2px rgba(96, 165, 250, 0.25), var(--shadow);
+      }
+      .device-card.glow-heat.glow-cool {
+        border-color: rgba(168, 85, 247, 0.5);
+        box-shadow: 0 0 16px -2px rgba(168, 85, 247, 0.25), var(--shadow);
       }
     }
 
@@ -195,6 +193,7 @@
       .hvac-pill.pill-emer { background: rgba(239, 68, 68, 0.18); color: #f87171; }
     }
     @keyframes fan-spin { to { transform: rotate(360deg); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .fan-spin { animation: fan-spin 1.2s linear infinite; display: inline-block; }
 
     /* Humidity gauge */
@@ -223,34 +222,29 @@
     /* Row 2: current temp + target controls */
     .card-row-climate {
       display: flex; align-items: center; justify-content: space-between;
-      padding-bottom: 14px;
+      padding-bottom: 8px;
     }
     .climate-current {
-      display: flex; align-items: baseline; gap: 6px;
+      display: flex; align-items: baseline; gap: 5px;
     }
     .temp-big {
-      font-size: 44px; font-weight: 700; letter-spacing: -2px; line-height: 1;
+      font-size: 48px; font-weight: 700; letter-spacing: -2.5px; line-height: 1;
     }
     .temp-unit {
-      font-size: 18px; font-weight: 500; color: var(--text2);
+      font-size: 16px; font-weight: 500; color: var(--text3);
     }
-    .temp-humidity {
-      font-size: 12px; color: var(--text3);
-      display: flex; align-items: center; gap: 3px; margin-top: 2px;
-    }
-    .temp-humidity .mdi { font-size: 14px; }
 
     /* Target single */
     .target-single {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; gap: 14px;
     }
     .target-info { text-align: center; }
-    .target-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.3px; }
-    .target-value { font-size: 22px; font-weight: 600; line-height: 1.2; }
+    .target-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+    .target-value { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px; }
     .temp-btn {
-      width: 36px; height: 36px; border-radius: 50%;
-      border: 1px solid var(--border); background: var(--card);
-      color: var(--text); font-size: 18px; cursor: pointer;
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 1.5px solid var(--border); background: var(--card);
+      color: var(--text); font-size: 20px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: all 0.15s; user-select: none; -webkit-user-select: none;
     }
@@ -259,54 +253,105 @@
 
     /* Target range */
     .target-range {
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 6px;
     }
-    .range-group { display: flex; align-items: center; gap: 6px; }
-    .range-label { font-size: 10px; color: var(--text3); text-transform: uppercase; font-weight: 600; letter-spacing: 0.3px; }
-    .range-value { font-size: 17px; font-weight: 600; min-width: 38px; text-align: center; }
+    .range-group { display: flex; align-items: center; gap: 4px; }
+    .range-label { font-size: 10px; color: var(--text3); text-transform: uppercase; font-weight: 600; letter-spacing: 0.4px; }
+    .range-value { font-size: 18px; font-weight: 700; min-width: 40px; text-align: center; letter-spacing: -0.3px; }
     .range-btn {
-      width: 28px; height: 28px; border-radius: 50%;
-      border: 1px solid var(--border); background: var(--card);
-      color: var(--text); font-size: 14px; cursor: pointer;
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1.5px solid var(--border); background: var(--card);
+      color: var(--text); font-size: 15px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: all 0.15s; user-select: none; -webkit-user-select: none;
     }
     .range-btn:hover { background: var(--hover); border-color: var(--text3); }
     .range-btn:active { transform: scale(0.92); }
-    .range-sep { color: var(--text3); font-size: 14px; margin: 0 2px; }
+    .range-sep { color: var(--text3); font-size: 14px; margin: 0 1px; }
 
-    /* Row 3: mode + eco */
+    /* Row 3: mode + eco + fan (single row) */
     .card-row-controls {
-      display: flex; align-items: center; justify-content: space-between;
-      border-top: 1px solid var(--border); padding-top: 12px;
+      display: flex; align-items: center;
+      flex-wrap: wrap; gap: 6px;
+      border-top: 1px solid var(--border);
+      margin-top: 6px; padding-top: 10px;
     }
+    .controls-spacer { flex: 1; min-width: 4px; }
     .mode-seg {
       display: inline-flex; background: var(--bg);
-      border-radius: 8px; padding: 3px; gap: 2px;
+      border-radius: 10px; padding: 3px; gap: 2px;
     }
     .mode-btn {
-      padding: 5px 10px; font-size: 11px; font-weight: 600;
+      padding: 6px 11px; font-size: 11px; font-weight: 650;
       text-transform: uppercase; letter-spacing: 0.3px;
-      border: none; border-radius: 6px; cursor: pointer;
+      border: none; border-radius: 7px; cursor: pointer;
       background: transparent; color: var(--text3); transition: all 0.15s;
     }
     .mode-btn:hover { color: var(--text); }
-    .mode-btn.active { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .mode-btn.active {
+      background: var(--card); color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
     .mode-btn.active.m-heat { color: #dc2626; }
     .mode-btn.active.m-cool { color: #2563eb; }
     .mode-btn.active.m-auto { color: #7c3aed; }
+    .mode-btn.active.m-emer { color: #dc2626; }
+
     .eco-btn {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 5px 10px; font-size: 11px; font-weight: 600;
+      padding: 6px 10px; font-size: 11px; font-weight: 650;
       text-transform: uppercase; letter-spacing: 0.3px;
-      border: 1px solid var(--border); border-radius: 8px;
+      border: 1.5px solid var(--border); border-radius: 10px;
       cursor: pointer; background: transparent; color: var(--text3);
       transition: all 0.15s;
     }
+    .eco-btn .mdi { font-size: 14px; }
     .eco-btn:hover { border-color: var(--text3); color: var(--text2); }
     .eco-btn.active { background: #d1fae5; color: #059669; border-color: #a7f3d0; }
     @media (prefers-color-scheme: dark) {
       .eco-btn.active { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
+    }
+    .fan-seg {
+      display: inline-flex; background: var(--bg);
+      border-radius: 10px; padding: 3px; gap: 2px;
+    }
+    .fan-btn {
+      padding: 5px 9px; font-size: 11px; font-weight: 650;
+      text-transform: uppercase; letter-spacing: 0.3px;
+      border: none; border-radius: 7px; cursor: pointer;
+      background: transparent; color: var(--text3); transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .fan-btn .mdi { font-size: 13px; }
+    .fan-btn:hover { color: var(--text); }
+    .fan-btn.active {
+      background: var(--card); color: #16a34a;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .fan-timer {
+      font-size: 9px; font-weight: 600; color: var(--text3);
+      margin-left: 2px; letter-spacing: 0.2px;
+    }
+    /* .fan-row removed — fan merged into card-row-controls */
+    .ttt-label {
+      font-size: 11px; color: var(--text2); text-align: center;
+      margin-top: 1px; font-weight: 600; letter-spacing: 0.2px;
+    }
+    .climate-current { position: relative; }
+    .leaf-badge {
+      color: #16a34a; font-size: 18px;
+      display: inline-flex; margin-left: 2px;
+      vertical-align: baseline;
+    }
+    .safety-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+      background: rgba(239, 68, 68, 0.12); color: #dc2626;
+    }
+    .safety-pill .mdi { font-size: 13px; }
+    @media (prefers-color-scheme: dark) {
+      .safety-pill { background: rgba(239, 68, 68, 0.18); color: #f87171; }
     }
 
     .empty-state {
@@ -327,18 +372,6 @@
     .sched-toggle.open .mdi { transform: rotate(90deg); }
     .sched-section { display: none; padding-top: 12px; }
     .sched-section.open { display: block; }
-    .sched-mode-seg {
-      display: inline-flex; background: var(--bg);
-      border-radius: 8px; padding: 3px; gap: 2px; margin-bottom: 10px;
-    }
-    .sched-mode-btn {
-      padding: 4px 10px; font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.3px;
-      border: none; border-radius: 6px; cursor: pointer;
-      background: transparent; color: var(--text3); transition: all 0.15s;
-    }
-    .sched-mode-btn:hover { color: var(--text); }
-    .sched-mode-btn.active { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
     .sched-grid { margin-bottom: 4px; }
     .sched-row {
       display: flex; align-items: center; height: 48px;
@@ -381,7 +414,11 @@
     .sched-circle:active { cursor: grabbing; }
     .sched-circle.heat { background: #f59e0b; }
     .sched-circle.cool { background: #3b82f6; }
-    .sched-circle.range { background: #7c3aed; }
+    .sched-circle.range {
+      background: #7c3aed;
+      flex-direction: column; line-height: 1;
+      font-size: 10px; gap: 1px;
+    }
     .sched-circle .circle-del {
       position: absolute; top: -6px; right: -6px;
       width: 16px; height: 16px; border-radius: 50%;
@@ -453,7 +490,10 @@
 <body>
   <div class="header">
     <h1><i class="mdi mdi-thermostat"></i> NoLongerEvil</h1>
-    <button onclick="loadDevices()" class="btn-icon" title="Refresh"><i class="mdi mdi-refresh"></i></button>
+    <div style="display:flex;gap:4px">
+      <button onclick="toggleDemo()" class="btn-icon" id="demoBtn" title="Toggle demo cards"><i class="mdi mdi-test-tube"></i></button>
+      <button onclick="loadDevices()" class="btn-icon" title="Refresh"><i class="mdi mdi-refresh"></i></button>
+    </div>
   </div>
 
   <button class="setup-toggle" onclick="toggleSetup()" id="setupToggle">
@@ -481,8 +521,110 @@
   <script>
     const BASE_PATH = document.body.dataset.ingressPath || '';
     const pendingTargets = {};
+    let showDemo = false;
+
+    function getDemoDevices() {
+      const now = Date.now() / 1000;
+      return [
+        {
+          serial: 'DEMO-HEAT-01', name: 'Living Room', is_available: true,
+          current_temperature: 20.5, target_temperature: 22.0,
+          target_temperature_high: null, target_temperature_low: null,
+          humidity: 42, mode: 'heat', eco_mode: null, has_leaf: true,
+          temperature_scale: 'F', time_to_target: 15,
+          fan_timer_active: true, fan_timer_timeout: now + 2400,
+          safety_temp_activating_hvac: false, safety_state: null,
+          hvac: { heater: true, heat_x2: false, heat_x3: false, ac: false, cool_x2: false, cool_x3: false,
+                  fan: true, aux_heat: false, emer_heat: false, alt_heat: false,
+                  humidifier: false, dehumidifier: false, auto_dehum: false, fan_cooling: false },
+          capabilities: { can_heat: true, can_cool: true, has_fan: true, has_emer_heat: false, has_humidifier: false },
+          software_version: '6.2.1-1', learning_mode: true, preconditioning_enabled: true,
+        },
+        {
+          serial: 'DEMO-RANGE-02', name: 'Master Bedroom', is_available: true,
+          current_temperature: 21.0, target_temperature: null,
+          target_temperature_high: 23.5, target_temperature_low: 19.0,
+          humidity: 55, mode: 'range', eco_mode: null, has_leaf: false,
+          temperature_scale: 'F', time_to_target: 0,
+          fan_timer_active: false, fan_timer_timeout: 0,
+          safety_temp_activating_hvac: false, safety_state: null,
+          hvac: { heater: false, heat_x2: false, heat_x3: false, ac: true, cool_x2: false, cool_x3: false,
+                  fan: true, aux_heat: false, emer_heat: false, alt_heat: false,
+                  humidifier: true, dehumidifier: false, auto_dehum: false, fan_cooling: false },
+          capabilities: { can_heat: true, can_cool: true, has_fan: true, has_emer_heat: true, has_humidifier: true },
+          target_humidity: 50, target_humidity_enabled: true,
+          software_version: '6.2.1-1',
+        },
+        {
+          serial: 'DEMO-EMER-03', name: 'Basement', is_available: true,
+          current_temperature: 14.0, target_temperature: 20.0,
+          target_temperature_high: null, target_temperature_low: null,
+          humidity: 38, mode: 'emergency', eco_mode: null, has_leaf: false,
+          temperature_scale: 'F', time_to_target: 0,
+          fan_timer_active: false, fan_timer_timeout: 0,
+          safety_temp_activating_hvac: false, safety_state: null,
+          hvac: { heater: false, heat_x2: false, heat_x3: false, ac: false, cool_x2: false, cool_x3: false,
+                  fan: true, aux_heat: false, emer_heat: true, alt_heat: false,
+                  humidifier: false, dehumidifier: false, auto_dehum: false, fan_cooling: false },
+          capabilities: { can_heat: true, can_cool: false, has_fan: true, has_emer_heat: true, has_humidifier: false },
+          software_version: '6.2.1-1',
+        },
+        {
+          serial: 'DEMO-ECO-04', name: 'Guest Room', is_available: false,
+          last_seen: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
+          current_temperature: 18.0, target_temperature: 20.0,
+          target_temperature_high: null, target_temperature_low: null,
+          humidity: 35, mode: 'heat', eco_mode: 'manual-eco', has_leaf: true,
+          temperature_scale: 'C', time_to_target: 0,
+          fan_timer_active: false, fan_timer_timeout: 0,
+          safety_temp_activating_hvac: false, safety_state: null,
+          hvac: { heater: false, heat_x2: false, heat_x3: false, ac: false, cool_x2: false, cool_x3: false,
+                  fan: false, aux_heat: false, emer_heat: false, alt_heat: false,
+                  humidifier: false, dehumidifier: false, auto_dehum: false, fan_cooling: false },
+          capabilities: { can_heat: true, can_cool: false, has_fan: false, has_emer_heat: false, has_humidifier: false },
+          eco_temperatures: { high: 24.0, low: 4.5 },
+          software_version: '6.2.1-1',
+        },
+        {
+          serial: 'DEMO-SAFE-05', name: 'Attic', is_available: true,
+          current_temperature: 3.5, target_temperature: null,
+          target_temperature_high: null, target_temperature_low: null,
+          humidity: 60, mode: 'off', eco_mode: null, has_leaf: false,
+          temperature_scale: 'F', time_to_target: 0,
+          fan_timer_active: false, fan_timer_timeout: 0,
+          safety_temp_activating_hvac: true, safety_state: 'active',
+          hvac: { heater: true, heat_x2: false, heat_x3: false, ac: false, cool_x2: false, cool_x3: false,
+                  fan: false, aux_heat: false, emer_heat: false, alt_heat: false,
+                  humidifier: false, dehumidifier: false, auto_dehum: false, fan_cooling: false },
+          capabilities: { can_heat: true, can_cool: true, has_fan: true, has_emer_heat: false, has_humidifier: false },
+          software_version: '6.2.1-1',
+        },
+      ];
+    }
+
+    function toggleDemo() {
+      showDemo = !showDemo;
+      document.getElementById('demoBtn').style.color = showDemo ? 'var(--accent)' : '';
+      loadDevices();
+    }
+
     loadDevices();
+    // Fallback poll in case SSE disconnects
     setInterval(loadDevices, 30000);
+
+    // SSE: server pushes events when device state changes
+    let _ssePending = false;
+    function connectSSE() {
+      const es = new EventSource(BASE_PATH + '/api/events');
+      es.onmessage = function() {
+        // If user has active interaction, defer
+        if (activePopover) { _ssePending = true; return; }
+        for (const k in scheduleCache) { if (scheduleCache[k].dirty) { _ssePending = true; return; } }
+        loadDevices();
+      };
+      es.onerror = function() { es.close(); setTimeout(connectSSE, 5000); };
+    }
+    connectSSE();
 
     function toggleSetup() {
       document.getElementById('setupToggle').classList.toggle('open');
@@ -512,11 +654,11 @@
         });
         const j = await r.json();
         if (j.success) {
-          res.innerHTML = '<p class="msg-success">' + j.message + '</p>';
+          res.innerHTML = '<p class="msg-success">' + esc(j.message) + '</p>';
           document.getElementById('entryCode').value = '';
           setTimeout(loadDevices, 1000);
-        } else res.innerHTML = '<p class="msg-error">' + j.message + '</p>';
-      } catch (err) { res.innerHTML = '<p class="msg-error">Error: ' + err.message + '</p>'; }
+        } else res.innerHTML = '<p class="msg-error">' + esc(j.message) + '</p>';
+      } catch (err) { res.innerHTML = '<p class="msg-error">Error: ' + esc(err.message) + '</p>'; }
     });
 
     function c2f(c) { return (c * 9 / 5) + 32; }
@@ -524,8 +666,9 @@
     function tempVal(t, s) { return t == null ? null : s === 'F' ? Math.round(c2f(t)) : Math.round(t * 2) / 2; }
     function fmtTemp(t, s) { return t == null ? '--' : tempVal(t, s) + '\u00B0'; }
     function stepSize(s) { return s === 'F' ? 1 : 0.5; }
-    function modeKey(m) { if (!m) return 'off'; const v = m.toLowerCase(); return v === 'heat-cool' ? 'auto' : v; }
+    function modeKey(m) { if (!m) return 'off'; const v = m.toLowerCase(); return (v === 'heat-cool' || v === 'range') ? 'auto' : v; }
     function modeApi(k) { return k === 'auto' ? 'heat-cool' : k; }
+    function esc(s) { if (s == null) return ''; const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 
     function relativeTime(iso) {
       if (!iso) return '';
@@ -536,6 +679,14 @@
       return 'Last seen ' + Math.floor(s / 86400) + 'd ago';
     }
 
+    let _refreshTimers = [];
+    function scheduleRefresh() {
+      // Cancel any pending refresh timers
+      _refreshTimers.forEach(t => clearTimeout(t));
+      // Poll at 2s, 5s, 10s to catch device responses
+      _refreshTimers = [2000, 5000, 10000].map(ms => setTimeout(loadDevices, ms));
+    }
+
     async function sendCommand(serial, command, value) {
       try {
         const r = await fetch(BASE_PATH + '/command', {
@@ -544,7 +695,7 @@
         });
         const j = await r.json();
         if (!j.success) console.error('Command failed:', j.message);
-        setTimeout(loadDevices, 2000);
+        scheduleRefresh();
         return j;
       } catch (err) { console.error('Command error:', err); }
     }
@@ -577,7 +728,17 @@
     function toggleEco(serial, cur) {
       sendCommand(serial, 'set_away', !cur);
       const d = lastDevices.find(x => x.serial === serial);
-      if (d) { d.away = !cur; d.has_leaf = !cur; renderDevices(lastDevices); }
+      if (d) { d.eco_mode = !cur ? 'manual-eco' : null; renderDevices(lastDevices); }
+    }
+
+    function setFan(serial, mode) {
+      sendCommand(serial, 'set_fan', mode);
+      const d = lastDevices.find(x => x.serial === serial);
+      if (d) {
+        if (mode === 'on') { d.fan_timer_active = true; }
+        else if (mode === 'auto') { d.fan_timer_active = false; d.fan_timer_timeout = 0; }
+        renderDevices(lastDevices);
+      }
     }
 
     // --- Schedule ---
@@ -632,6 +793,7 @@
             j.schedule.days = normalizeDays(j.schedule.days);
           }
           sc.schedule = j.schedule;
+          sc.original = JSON.parse(JSON.stringify(j.schedule));
           sc.loading = false;
         } catch (e) {
           sc.loading = false;
@@ -642,11 +804,10 @@
     }
 
     function circleTemp(entry, scale) {
-      // Show rounded integer inside circle, matching Nest app style
       if (entry['temp-min'] != null && entry['temp-max'] != null) {
         const lo = scale === 'F' ? Math.round(c2f(entry['temp-min'])) : Math.round(entry['temp-min']);
         const hi = scale === 'F' ? Math.round(c2f(entry['temp-max'])) : Math.round(entry['temp-max']);
-        return lo + '-' + hi;
+        return '<span style="opacity:.7">' + lo + '</span><span>' + hi + '</span>';
       }
       const t = entry.temp;
       if (t == null) return '--';
@@ -670,21 +831,45 @@
       const sc = scheduleCache[serial];
       if (!sc || !sc.open) return '';
       if (sc.loading) return '<div class="sched-section open"><span style="color:var(--text3);font-size:12px">Loading schedule...</span></div>';
-      if (sc.error) return '<div class="sched-section open"><span class="msg-error" style="font-size:12px">' + sc.error + '</span></div>';
+      if (sc.error) return '<div class="sched-section open"><span class="msg-error" style="font-size:12px">' + esc(sc.error) + '</span></div>';
       if (!sc.schedule) return '<div class="sched-section open"><span style="color:var(--text3);font-size:12px">No schedule data from device yet.</span></div>';
 
       const sched = sc.schedule;
-      const mode = sched.schedule_mode || sched.mode || schedMode || 'HEAT';
+      const dataMode = (sched.schedule_mode || sched.mode || 'HEAT').toUpperCase();
+      const hvacMode = (schedMode || 'HEAT').toUpperCase();
+      // If the schedule data doesn't match the HVAC mode, poll for updated data
+      if (hvacMode !== 'OFF' && hvacMode !== 'EMERGENCY' && dataMode !== hvacMode) {
+        if (!sc._pollTimer) {
+          sc._pollTimer = setInterval(async () => {
+            try {
+              const r = await fetch(BASE_PATH + '/api/schedule?serial=' + serial);
+              const j = await r.json();
+              if (j.schedule) {
+                j.schedule.days = normalizeDays(j.schedule.days);
+                const newMode = (j.schedule.schedule_mode || j.schedule.mode || '').toUpperCase();
+                const curHvac = (lastDevices.find(x => x.serial === serial)?.mode || 'heat');
+                const curTarget = (curHvac === 'heat-cool' ? 'RANGE' : curHvac.toUpperCase());
+                if (newMode === curTarget) {
+                  clearInterval(sc._pollTimer);
+                  sc._pollTimer = null;
+                  sc.schedule = j.schedule;
+                  sc.original = JSON.parse(JSON.stringify(j.schedule));
+                  renderDevices(lastDevices);
+                }
+              }
+            } catch(e) { /* ignore, keep polling */ }
+          }, 5000);
+        }
+        return '<div class="sched-section open"><span style="color:var(--text3);font-size:12px">' +
+          '<i class="mdi mdi-sync" style="animation:spin 1s linear infinite"></i> ' +
+          'Waiting for device to sync ' + hvacMode.charAt(0) + hvacMode.slice(1).toLowerCase() + ' schedule...</span></div>';
+      }
+      // Schedule matches — clear any stale poll timer
+      if (sc._pollTimer) { clearInterval(sc._pollTimer); sc._pollTimer = null; }
+
+      const mode = dataMode;
       const esc = "'" + serial + "'";
       const is24 = use24h();
-
-      // Mode selector
-      let modeHtml = '<div class="sched-mode-seg">';
-      ['HEAT','COOL','RANGE'].forEach(m => {
-        const active = m === mode.toUpperCase() ? ' active' : '';
-        modeHtml += '<button class="sched-mode-btn' + active + '" onclick="setSchedMode(' + esc + ',\'' + m + '\')">' + m + '</button>';
-      });
-      modeHtml += '</div>';
 
       // Gridlines every 2 hours
       let gridlines = '';
@@ -735,11 +920,12 @@
       // Save row
       const dirtyClass = sc.dirty ? '' : ' style="display:none"';
       let saveHtml = '<div class="sched-save-row" id="schedSave_' + serial + '"' + dirtyClass + '>' +
-        '<button class="btn-primary" onclick="saveSchedule(' + esc + ')" style="font-size:12px;padding:5px 14px">Save Schedule</button>' +
+        '<button class="btn-primary" onclick="saveSchedule(' + esc + ')" style="font-size:12px;padding:5px 14px">Save</button>' +
+        '<button class="btn-primary" onclick="resetSchedule(' + esc + ')" style="font-size:12px;padding:5px 14px;background:var(--border);color:var(--text)">Reset</button>' +
         '<span class="sched-save-msg" id="schedMsg_' + serial + '"></span>' +
       '</div>';
 
-      return '<div class="sched-section open">' + modeHtml + daysHtml + axisHtml + saveHtml + '</div>';
+      return '<div class="sched-section open">' + daysHtml + axisHtml + saveHtml + '</div>';
     }
 
     function markDirty(serial) {
@@ -756,15 +942,6 @@
       for (let i = 0; i < 7; i++) {
         if (!sched.days[String(i)]) sched.days[String(i)] = [];
       }
-    }
-
-    function setSchedMode(serial, mode) {
-      const sc = scheduleCache[serial];
-      if (!sc || !sc.schedule) return;
-      sc.schedule.schedule_mode = mode;
-      markDirty(serial);
-      sendCommand(serial, 'set_schedule_mode', mode);
-      renderDevices(lastDevices);
     }
 
     function removeSetpoint(serial, dayIdx, entryIdx) {
@@ -863,6 +1040,7 @@
     function closePopover() {
       if (!activePopover) return;
       activePopover = null;
+      if (_ssePending) { _ssePending = false; loadDevices(); return; }
       renderDevices(lastDevices);
     }
 
@@ -941,6 +1119,15 @@
       return '<div class="sched-popover" onclick="event.stopPropagation()">' + inner + '</div>';
     }
 
+    function resetSchedule(serial) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.original) return;
+      sc.schedule = JSON.parse(JSON.stringify(sc.original));
+      sc.dirty = false;
+      activePopover = null;
+      renderDevices(lastDevices);
+    }
+
     async function saveSchedule(serial) {
       const sc = scheduleCache[serial];
       if (!sc || !sc.schedule) return;
@@ -951,6 +1138,7 @@
       const result = await sendCommand(serial, 'set_schedule', payload);
       if (result && result.success) {
         sc.dirty = false;
+        sc.original = JSON.parse(JSON.stringify(sc.schedule));
         if (msg) { msg.textContent = 'Saved'; msg.style.color = 'var(--accent)'; }
         const saveEl = document.getElementById('schedSave_' + serial);
         if (saveEl) setTimeout(() => { saveEl.style.display = 'none'; }, 1500);
@@ -1052,77 +1240,121 @@
         const tgt = p.target ?? d.target_temperature;
         const tLow = p.low ?? d.target_temperature_low;
         const tHigh = p.high ?? d.target_temperature_high;
-        const S = d.serial, esc = "'" + S + "'";
+        const S = d.serial, q = "'" + S + "'";
+        const cap = d.capabilities || {};
 
         // HVAC state
         const hvacSt = getHvacState(d);
         const hvacStatusHtml = renderHvacStatus(d);
 
         // Last seen
-        let ls = !on && d.last_seen ? '<div class="card-last-seen">' + relativeTime(d.last_seen) + '</div>' : '';
+        let ls = !on && d.last_seen ? '<div class="card-last-seen">' + esc(relativeTime(d.last_seen)) + '</div>' : '';
+
+        // Leaf badge — next to target value
+        const leaf = d.has_leaf;
+        const leafHtml = leaf ? '<span class="leaf-badge" title="Energy-saving temperature"><i class="mdi mdi-leaf"></i></span>' : '';
 
         // Target controls
         let targetHtml = '';
-        if (mk === 'off') {
+        if (mk === 'off' || mk === 'emergency') {
           // nothing
         } else if (mk === 'auto') {
           targetHtml = '<div class="target-range">' +
             '<div class="range-group">' +
               '<span class="range-label">Low</span>' +
-              '<button class="range-btn" onclick="adjustTemp(' + esc + ',' + tLow + ',\'' + scale + '\',-1,\'low\')">−</button>' +
+              '<button class="range-btn" onclick="adjustTemp(' + q + ',' + tLow + ',\'' + scale + '\',-1,\'low\')">−</button>' +
               '<span class="range-value">' + fmtTemp(tLow, scale) + '</span>' +
-              '<button class="range-btn" onclick="adjustTemp(' + esc + ',' + tLow + ',\'' + scale + '\',1,\'low\')">+</button>' +
+              '<button class="range-btn" onclick="adjustTemp(' + q + ',' + tLow + ',\'' + scale + '\',1,\'low\')">+</button>' +
             '</div>' +
             '<span class="range-sep">–</span>' +
             '<div class="range-group">' +
               '<span class="range-label">High</span>' +
-              '<button class="range-btn" onclick="adjustTemp(' + esc + ',' + tHigh + ',\'' + scale + '\',-1,\'high\')">−</button>' +
+              '<button class="range-btn" onclick="adjustTemp(' + q + ',' + tHigh + ',\'' + scale + '\',-1,\'high\')">−</button>' +
               '<span class="range-value">' + fmtTemp(tHigh, scale) + '</span>' +
-              '<button class="range-btn" onclick="adjustTemp(' + esc + ',' + tHigh + ',\'' + scale + '\',1,\'high\')">+</button>' +
+              '<button class="range-btn" onclick="adjustTemp(' + q + ',' + tHigh + ',\'' + scale + '\',1,\'high\')">+</button>' +
             '</div>' +
           '</div>';
         } else {
           targetHtml = '<div class="target-single">' +
-            '<button class="temp-btn" onclick="adjustTemp(' + esc + ',' + tgt + ',\'' + scale + '\',-1,\'target\')">−</button>' +
-            '<div class="target-info"><div class="target-label">Target</div><div class="target-value">' + fmtTemp(tgt, scale) + '</div></div>' +
-            '<button class="temp-btn" onclick="adjustTemp(' + esc + ',' + tgt + ',\'' + scale + '\',1,\'target\')">+</button>' +
+            '<button class="temp-btn" onclick="adjustTemp(' + q + ',' + tgt + ',\'' + scale + '\',-1,\'target\')">−</button>' +
+            '<div class="target-info"><div class="target-label">Target</div><div class="target-value">' + fmtTemp(tgt, scale) + leafHtml + '</div>' +
+              (d.time_to_target > 0 && (hvacSt.anyHeat || hvacSt.anyCool) ? '<div class="ttt-label" title="Estimated time to reach target temperature">\u2248' + esc(Math.max(1, Math.round((d.time_to_target - Date.now() / 1000) / 60))) + ' min</div>' : '') +
+            '</div>' +
+            '<button class="temp-btn" onclick="adjustTemp(' + q + ',' + tgt + ',\'' + scale + '\',1,\'target\')">+</button>' +
           '</div>';
         }
 
-        // Mode buttons
-        const modes = ['heat','cool','auto','off'];
+        // Mode buttons — capability-aware
+        const modes = [];
+        if (cap.can_heat !== false) modes.push('heat');
+        if (cap.can_cool !== false) modes.push('cool');
+        if (cap.can_heat !== false && cap.can_cool !== false) modes.push('auto');
+        if (cap.has_emer_heat) modes.push('emer');
+        modes.push('off');
+        const modeLabels = { heat: 'Heat', cool: 'Cool', auto: 'Auto', emer: 'Emer', off: 'Off' };
+        const modeTips = { heat: 'Heating mode', cool: 'Cooling mode', auto: 'Heat + Cool auto-switch', emer: 'Emergency heat', off: 'System off' };
         const modeBtns = modes.map(m => {
-          const a = mk === m, cls = 'mode-btn' + (a ? ' active m-' + m : '');
-          const label = m === 'auto' ? 'Auto' : m.charAt(0).toUpperCase() + m.slice(1);
-          return '<button class="' + cls + '" onclick="setMode(' + esc + ',\'' + modeApi(m) + '\')">' + label + '</button>';
+          const active = (m === 'emer' ? mk === 'emergency' : mk === m);
+          const cls = 'mode-btn' + (active ? ' active m-' + m : '');
+          const apiVal = m === 'auto' ? 'heat-cool' : m === 'emer' ? 'emergency' : m;
+          return '<button class="' + cls + '" onclick="setMode(' + q + ',\'' + apiVal + '\')" title="' + modeTips[m] + '">' + modeLabels[m] + '</button>';
         }).join('');
 
-        const eco = d.has_leaf || d.away;
+        // Eco state — use actual eco_mode, not has_leaf/away
+        const eco = d.eco_mode === 'manual-eco';
+
+        // Fan controls — inline in control row
+        const hasFan = cap.has_fan;
+        const fanActive = d.fan_timer_active;
+        let fanHtml = '';
+        if (hasFan) {
+          let timerLabel = '';
+          let fanTip = 'Fan running';
+          if (fanActive && d.fan_timer_timeout) {
+            const mins = Math.max(0, Math.round((d.fan_timer_timeout - Date.now() / 1000) / 60));
+            if (mins > 0) { timerLabel = '<span class="fan-timer">' + mins + 'm</span>'; fanTip = 'Fan running \u2014 ' + mins + ' min left'; }
+          }
+          fanHtml =
+            '<div class="fan-seg">' +
+              '<button class="fan-btn' + (!fanActive ? ' active' : '') + '" onclick="setFan(' + q + ',\'auto\')" title="Fan runs only with HVAC">Auto</button>' +
+              '<button class="fan-btn' + (fanActive ? ' active' : '') + '" onclick="setFan(' + q + ',\'on\')" title="' + esc(fanTip) + '">' +
+                '<i class="mdi mdi-fan' + (fanActive ? ' fan-spin' : '') + '"></i> On' + timerLabel +
+              '</button>' +
+            '</div>';
+        }
+
+        // Safety warning
+        let safetyHtml = '';
+        if (d.safety_temp_activating_hvac) {
+          safetyHtml = '<span class="safety-pill" title="Safety temperatures are activating HVAC to protect your home"><i class="mdi mdi-alert"></i> Safety</span>';
+        }
+
         const schedOpen = scheduleCache[S] && scheduleCache[S].open;
         const schedToggleCls = 'sched-toggle' + (schedOpen ? ' open' : '');
-        const schedHtml = renderScheduleSection(S, scale, d.schedule_mode);
+        const schedHtml = renderScheduleSection(S, scale, d.mode === 'heat-cool' ? 'RANGE' : (d.mode || 'heat').toUpperCase());
 
         return '<div class="device-card' + cardGlowClass(hvacSt) + '">' +
           renderAccentStrip(hvacSt) +
           '<div class="card-row-top">' +
             '<div class="card-identity">' +
-              '<span class="online-dot ' + (on ? 'on' : 'off') + '"></span>' +
+              '<span class="online-dot ' + (on ? 'on' : 'off') + '" title="' + (on ? 'Online' : 'Offline') + '"></span>' +
               '<div>' +
-                '<h3>' + (d.name || S) + '</h3>' +
-                '<div class="card-serial">' + S + '</div>' +
+                '<h3>' + esc(d.name || S) + '</h3>' +
+                '<div class="card-serial">' + esc(S) + '</div>' +
                 ls +
               '</div>' +
             '</div>' +
             '<div class="card-meta">' +
-              (d.humidity != null ? '<span><i class="mdi mdi-water-percent"></i> ' + d.humidity + '%</span>' : '') +
-              '<button class="btn-delete" onclick="deleteDevice(' + esc + ')" title="Remove"><i class="mdi mdi-trash-can-outline"></i></button>' +
+              (d.humidity != null ? '<span title="Humidity"><i class="mdi mdi-water-percent"></i> ' + esc(d.humidity) + '%</span>' : '') +
+              safetyHtml +
+              '<button class="btn-delete" onclick="deleteDevice(' + q + ')" title="Remove device"><i class="mdi mdi-trash-can-outline"></i></button>' +
             '</div>' +
           '</div>' +
           '<div class="card-row-climate">' +
             '<div>' +
               '<div class="climate-current">' +
                 '<span class="temp-big">' + (tempVal(d.current_temperature, scale) ?? '--') + '</span>' +
-                '<span class="temp-unit">' + scale + '</span>' +
+                '<span class="temp-unit">\u00B0' + esc(scale) + '</span>' +
               '</div>' +
             '</div>' +
             targetHtml +
@@ -1130,11 +1362,13 @@
           hvacStatusHtml +
           '<div class="card-row-controls">' +
             '<div class="mode-seg">' + modeBtns + '</div>' +
-            '<button class="' + (eco ? 'eco-btn active' : 'eco-btn') + '" onclick="toggleEco(' + esc + ',' + eco + ')">' +
-              '<i class="mdi mdi-leaf"></i> Eco</button>' +
+            '<button class="' + (eco ? 'eco-btn active' : 'eco-btn') + '" onclick="toggleEco(' + q + ',' + eco + ')" title="' + (eco ? 'Eco mode active \u2014 click to resume schedule' : 'Enable eco mode') + '">' +
+              '<i class="mdi mdi-home-export-outline"></i> Eco</button>' +
+            '<span class="controls-spacer"></span>' +
+            fanHtml +
           '</div>' +
-          '<button class="' + schedToggleCls + '" onclick="toggleSchedule(' + esc + ')">' +
-            '<i class="mdi mdi-chevron-right"></i> Schedule' +
+          '<button class="' + schedToggleCls + '" onclick="toggleSchedule(' + q + ')">' +
+            '<i class="mdi mdi-chevron-right"></i> ' + ({heat:'Heat',cool:'Cool','heat-cool':'Range'}[d.mode] || '') + ' Schedule' +
           '</button>' +
           schedHtml +
         '</div>';
@@ -1146,10 +1380,12 @@
         const r = await fetch(BASE_PATH + '/api/devices');
         const data = await r.json();
         Object.keys(pendingTargets).forEach(k => delete pendingTargets[k]);
-        renderDevices(data.devices || []);
+        const real = data.devices || [];
+        renderDevices(showDemo ? real.concat(getDemoDevices()) : real);
       } catch (err) {
+        if (showDemo) { renderDevices(getDemoDevices()); return; }
         document.getElementById('deviceList').innerHTML =
-          '<div class="setup-card"><p class="msg-error">Error loading devices: ' + err.message + '</p></div>';
+          '<div class="setup-card"><p class="msg-error">Error loading devices: ' + esc(err.message) + '</p></div>';
       }
     }
 

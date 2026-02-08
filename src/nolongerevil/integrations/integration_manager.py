@@ -47,6 +47,7 @@ class IntegrationManager:
         self._integrations: dict[str, BaseIntegration] = {}  # user_id:type -> integration
         self._poll_task: asyncio.Task[None] | None = None
         self._running = False
+        self._state_callbacks: list = []  # lightweight callbacks for SSE etc.
 
     async def start(self) -> None:
         """Start the integration manager."""
@@ -154,6 +155,15 @@ class IntegrationManager:
             if key not in self._integrations:
                 await self._create_integration(config)
 
+    def add_state_callback(self, callback) -> None:
+        """Register a lightweight callback for state changes (e.g. SSE)."""
+        self._state_callbacks.append(callback)
+
+    def remove_state_callback(self, callback) -> None:
+        """Remove a state change callback."""
+        with contextlib.suppress(ValueError):
+            self._state_callbacks.remove(callback)
+
     async def on_device_state_change(self, change: DeviceStateChange) -> None:
         """Broadcast state change to all integrations.
 
@@ -165,6 +175,11 @@ class IntegrationManager:
                 await integration.on_device_state_change(change)
             except Exception as e:
                 logger.error(f"Integration {key} failed on state change: {e}")
+        for cb in self._state_callbacks:
+            try:
+                await cb(change)
+            except Exception as e:
+                logger.error(f"State callback failed: {e}")
 
     async def on_device_connected(self, serial: str) -> None:
         """Broadcast device connected to all integrations.
