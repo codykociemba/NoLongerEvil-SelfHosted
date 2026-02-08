@@ -121,9 +121,98 @@
     .card-last-seen { font-size: 11px; color: var(--text3); font-style: italic; }
     .card-meta { display: flex; align-items: center; gap: 10px; color: var(--text3); font-size: 13px; }
     .card-meta .mdi { font-size: 15px; }
-    .hvac-indicator { display: inline-flex; align-items: center; font-size: 16px; }
-    .hvac-indicator.heating { color: #f59e0b; }
-    .hvac-indicator.cooling { color: #3b82f6; }
+    /* HVAC card glow effects */
+    .device-card { position: relative; overflow: hidden; transition: box-shadow 0.6s ease; }
+    .device-card.glow-heat {
+      box-shadow:
+        inset 0 0 20px -4px rgba(249, 115, 22, 0.45),
+        inset 0 0 40px -10px rgba(234, 88, 12, 0.18),
+        0 0 10px -2px rgba(249, 115, 22, 0.25),
+        var(--shadow);
+    }
+    .device-card.glow-cool {
+      box-shadow:
+        inset 0 0 20px -4px rgba(59, 130, 246, 0.45),
+        inset 0 0 40px -10px rgba(37, 99, 235, 0.18),
+        0 0 10px -2px rgba(59, 130, 246, 0.25),
+        var(--shadow);
+    }
+    .device-card.glow-heat.glow-cool {
+      box-shadow:
+        inset 0 0 20px -4px rgba(168, 85, 247, 0.45),
+        inset 0 0 40px -10px rgba(124, 58, 237, 0.18),
+        0 0 10px -2px rgba(168, 85, 247, 0.25),
+        var(--shadow);
+    }
+    @media (prefers-color-scheme: dark) {
+      .device-card.glow-heat {
+        box-shadow:
+          inset 0 0 22px -4px rgba(251, 146, 60, 0.55),
+          inset 0 0 45px -10px rgba(234, 88, 12, 0.22),
+          0 0 12px -2px rgba(251, 146, 60, 0.35),
+          var(--shadow);
+      }
+      .device-card.glow-cool {
+        box-shadow:
+          inset 0 0 22px -4px rgba(96, 165, 250, 0.55),
+          inset 0 0 45px -10px rgba(59, 130, 246, 0.22),
+          0 0 12px -2px rgba(96, 165, 250, 0.35),
+          var(--shadow);
+      }
+    }
+
+    /* HVAC status row */
+    .hvac-status {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 8px 0 4px; margin-top: 2px;
+    }
+    .hvac-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+    }
+    .hvac-pill .mdi { font-size: 14px; }
+    .hvac-pill.pill-heat {
+      background: rgba(251, 146, 60, 0.12); color: #ea580c;
+    }
+    .hvac-pill.pill-cool {
+      background: rgba(96, 165, 250, 0.12); color: #2563eb;
+    }
+    .hvac-pill.pill-fan {
+      background: rgba(34, 197, 94, 0.10); color: #16a34a;
+    }
+    .hvac-pill.pill-humid {
+      background: rgba(14, 165, 233, 0.10); color: #0284c7;
+    }
+    .hvac-pill.pill-emer {
+      background: rgba(239, 68, 68, 0.12); color: #dc2626;
+    }
+    @media (prefers-color-scheme: dark) {
+      .hvac-pill.pill-heat { background: rgba(251, 146, 60, 0.18); color: #fb923c; }
+      .hvac-pill.pill-cool { background: rgba(96, 165, 250, 0.18); color: #93c5fd; }
+      .hvac-pill.pill-fan { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+      .hvac-pill.pill-humid { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+      .hvac-pill.pill-emer { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+    }
+    @keyframes fan-spin { to { transform: rotate(360deg); } }
+    .fan-spin { animation: fan-spin 1.2s linear infinite; display: inline-block; }
+
+    /* Humidity gauge */
+    .humid-gauge {
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .humid-bar-track {
+      width: 40px; height: 5px; border-radius: 3px;
+      background: rgba(14, 165, 233, 0.15); overflow: hidden;
+    }
+    .humid-bar-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, #38bdf8, #0284c7);
+      transition: width 0.4s ease;
+    }
+    .humid-label {
+      font-size: 10px; font-weight: 600; opacity: 0.8;
+    }
     .btn-delete {
       background: none; border: none; cursor: pointer;
       color: var(--text3); padding: 4px; border-radius: 6px;
@@ -224,6 +313,141 @@
       text-align: center; padding: 48px 20px; color: var(--text3);
     }
     .empty-state .mdi { font-size: 48px; display: block; margin-bottom: 12px; opacity: 0.3; }
+
+    /* Schedule section */
+    .sched-toggle {
+      display: flex; align-items: center; gap: 6px;
+      background: none; border: none; cursor: pointer;
+      color: var(--text3); font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.3px;
+      padding: 8px 0 0; transition: color 0.15s;
+    }
+    .sched-toggle:hover { color: var(--text2); }
+    .sched-toggle .mdi { font-size: 14px; transition: transform 0.2s; }
+    .sched-toggle.open .mdi { transform: rotate(90deg); }
+    .sched-section { display: none; padding-top: 12px; }
+    .sched-section.open { display: block; }
+    .sched-mode-seg {
+      display: inline-flex; background: var(--bg);
+      border-radius: 8px; padding: 3px; gap: 2px; margin-bottom: 10px;
+    }
+    .sched-mode-btn {
+      padding: 4px 10px; font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.3px;
+      border: none; border-radius: 6px; cursor: pointer;
+      background: transparent; color: var(--text3); transition: all 0.15s;
+    }
+    .sched-mode-btn:hover { color: var(--text); }
+    .sched-mode-btn.active { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .sched-grid { margin-bottom: 4px; }
+    .sched-row {
+      display: flex; align-items: center; height: 48px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sched-row:last-child { border-bottom: none; }
+    .sched-day-label {
+      width: 40px; flex-shrink: 0;
+      font-size: 11px; font-weight: 600; color: var(--text2);
+    }
+    .sched-timeline {
+      flex: 1; position: relative; height: 100%;
+    }
+    .sched-row-add {
+      flex-shrink: 0; width: 22px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sched-row-add button {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 1px dashed var(--border); background: none;
+      color: var(--text3); font-size: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; line-height: 1;
+    }
+    .sched-row-add button:hover { border-color: var(--text3); color: var(--text2); }
+    .sched-gridline {
+      position: absolute; top: 0; bottom: 0; width: 1px;
+      background: var(--border); opacity: 0.5;
+    }
+    .sched-circle {
+      position: absolute; width: 34px; height: 34px; border-radius: 50%;
+      color: white; font-weight: 700; font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      top: 50%; transform: translate(-50%, -50%);
+      cursor: grab; user-select: none; -webkit-user-select: none;
+      z-index: 2; transition: box-shadow 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .sched-circle:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 3; }
+    .sched-circle:active { cursor: grabbing; }
+    .sched-circle.heat { background: #f59e0b; }
+    .sched-circle.cool { background: #3b82f6; }
+    .sched-circle.range { background: #7c3aed; }
+    .sched-circle .circle-del {
+      position: absolute; top: -6px; right: -6px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #dc2626; color: white; font-size: 11px; line-height: 16px;
+      text-align: center; cursor: pointer;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .sched-circle:hover .circle-del { opacity: 1; }
+    .sched-drag-label {
+      position: absolute; bottom: calc(100% + 4px); left: 50%;
+      transform: translateX(-50%);
+      background: var(--text); color: var(--bg);
+      font-size: 11px; font-weight: 600;
+      padding: 2px 6px; border-radius: 4px;
+      white-space: nowrap; pointer-events: none;
+      z-index: 10;
+    }
+    .sched-axis {
+      display: flex; margin-left: 40px; padding-top: 2px;
+    }
+    .sched-axis-label {
+      font-size: 9px; color: var(--text3); text-align: center;
+    }
+    .sched-save-row {
+      display: flex; align-items: center; gap: 8px; padding-top: 10px;
+    }
+    .sched-save-msg { font-size: 12px; }
+
+    /* Inline temp popover */
+    .sched-popover {
+      position: absolute; bottom: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%);
+      background: var(--card); border-radius: 10px;
+      box-shadow: var(--shadow-lg); border: 1px solid var(--border);
+      padding: 6px 4px; z-index: 20;
+      display: flex; align-items: center; gap: 2px;
+      white-space: nowrap;
+    }
+    .sched-popover::after {
+      content: ''; position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent; border-top-color: var(--card);
+    }
+    .sched-pop-group {
+      display: flex; align-items: center; gap: 2px;
+    }
+    .sched-pop-btn {
+      width: 24px; height: 24px; border-radius: 50%;
+      border: 1px solid var(--border); background: var(--card);
+      color: var(--text); font-size: 14px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.1s; user-select: none; -webkit-user-select: none;
+      line-height: 1;
+    }
+    .sched-pop-btn:hover { background: var(--hover); border-color: var(--text3); }
+    .sched-pop-btn:active { transform: scale(0.9); }
+    .sched-pop-val {
+      min-width: 36px; text-align: center;
+      font-size: 14px; font-weight: 700; color: var(--text);
+      padding: 2px 2px;
+      border: none; background: transparent; outline: none;
+      font-family: inherit;
+    }
+    .sched-pop-val:focus { background: var(--bg); border-radius: 4px; }
+    .sched-pop-unit { font-size: 10px; color: var(--text3); margin-right: 2px; }
+    .sched-pop-sep { color: var(--text3); font-size: 10px; margin: 0 2px; }
   </style>
 </head>
 <body>
@@ -356,6 +580,463 @@
       if (d) { d.away = !cur; d.has_leaf = !cur; renderDevices(lastDevices); }
     }
 
+    // --- Schedule ---
+    const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const scheduleCache = {}; // serial -> {schedule, dirty, open}
+    let editOverlay = null;
+
+    function secsToTime(s) {
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+      if (use24h()) return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      return h12 + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+    }
+
+    // Device sends days as {"0": {"0": {entry}, "1": {entry}}, ...} (dict-of-dicts)
+    // UI works with arrays internally: {"0": [{entry}, {entry}], ...}
+    function normalizeDays(days) {
+      if (!days) return {};
+      const out = {};
+      for (const dk of Object.keys(days)) {
+        const d = days[dk];
+        if (Array.isArray(d)) { out[dk] = d; continue; }
+        // Dict-of-dicts: sort by key and convert to array
+        out[dk] = Object.keys(d).sort((a, b) => parseInt(a) - parseInt(b)).map(k => d[k]);
+      }
+      return out;
+    }
+    // Convert back to dict-of-dicts for the device
+    function denormalizeDays(days) {
+      const out = {};
+      for (const dk of Object.keys(days)) {
+        const arr = days[dk];
+        const d = {};
+        arr.forEach((e, i) => { d[String(i)] = e; });
+        out[dk] = d;
+      }
+      return out;
+    }
+
+    async function toggleSchedule(serial) {
+      const sc = scheduleCache[serial] || {};
+      sc.open = !sc.open;
+      scheduleCache[serial] = sc;
+      if (sc.open && !sc.schedule) {
+        sc.loading = true;
+        renderDevices(lastDevices);
+        try {
+          const r = await fetch(BASE_PATH + '/api/schedule?serial=' + serial);
+          const j = await r.json();
+          if (j.schedule) {
+            j.schedule.days = normalizeDays(j.schedule.days);
+          }
+          sc.schedule = j.schedule;
+          sc.loading = false;
+        } catch (e) {
+          sc.loading = false;
+          sc.error = e.message;
+        }
+      }
+      renderDevices(lastDevices);
+    }
+
+    function circleTemp(entry, scale) {
+      // Show rounded integer inside circle, matching Nest app style
+      if (entry['temp-min'] != null && entry['temp-max'] != null) {
+        const lo = scale === 'F' ? Math.round(c2f(entry['temp-min'])) : Math.round(entry['temp-min']);
+        const hi = scale === 'F' ? Math.round(c2f(entry['temp-max'])) : Math.round(entry['temp-max']);
+        return lo + '-' + hi;
+      }
+      const t = entry.temp;
+      if (t == null) return '--';
+      return scale === 'F' ? Math.round(c2f(t)) : Math.round(t);
+    }
+
+    function modeColor(entry, schedMode) {
+      const t = (entry.type || schedMode || 'HEAT').toUpperCase();
+      if (t === 'COOL') return 'cool';
+      if (t === 'RANGE') return 'range';
+      return 'heat';
+    }
+
+    // Generate axis labels: 12h or 24h based on locale
+    function use24h() {
+      try { return !new Intl.DateTimeFormat(navigator.language, {hour:'numeric'}).format(0).match(/AM|PM/i); }
+      catch(e) { return false; }
+    }
+
+    function renderScheduleSection(serial, scale, schedMode) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.open) return '';
+      if (sc.loading) return '<div class="sched-section open"><span style="color:var(--text3);font-size:12px">Loading schedule...</span></div>';
+      if (sc.error) return '<div class="sched-section open"><span class="msg-error" style="font-size:12px">' + sc.error + '</span></div>';
+      if (!sc.schedule) return '<div class="sched-section open"><span style="color:var(--text3);font-size:12px">No schedule data from device yet.</span></div>';
+
+      const sched = sc.schedule;
+      const mode = sched.schedule_mode || sched.mode || schedMode || 'HEAT';
+      const esc = "'" + serial + "'";
+      const is24 = use24h();
+
+      // Mode selector
+      let modeHtml = '<div class="sched-mode-seg">';
+      ['HEAT','COOL','RANGE'].forEach(m => {
+        const active = m === mode.toUpperCase() ? ' active' : '';
+        modeHtml += '<button class="sched-mode-btn' + active + '" onclick="setSchedMode(' + esc + ',\'' + m + '\')">' + m + '</button>';
+      });
+      modeHtml += '</div>';
+
+      // Gridlines every 2 hours
+      let gridlines = '';
+      for (let h = 0; h <= 24; h += 2) {
+        gridlines += '<div class="sched-gridline" style="left:' + ((h/24)*100) + '%"></div>';
+      }
+
+      // Day rows
+      let daysHtml = '<div class="sched-grid">';
+      for (let di = 0; di < 7; di++) {
+        const dk = String(di);
+        const entries = (sched.days && sched.days[dk]) || [];
+        let circles = '';
+        entries.forEach((entry, ei) => {
+          if (entry.entry_type === 'continuation') return;
+          const pct = ((entry.time || 0) / 86400) * 100;
+          const temp = circleTemp(entry, scale);
+          const color = modeColor(entry, mode);
+          const isActive = activePopover && activePopover.serial === serial &&
+            activePopover.dayIdx === di && activePopover.entryIdx === ei;
+          const popHtml = isActive ? buildPopoverHtml(serial, di, ei, scale) : '';
+          circles += '<div class="sched-circle ' + color + '" style="left:' + pct + '%"' +
+            ' onclick="editSetpoint(' + esc + ',' + di + ',' + ei + ')"' +
+            ' onmousedown="startDrag(event,' + esc + ',' + di + ',' + ei + ')"' +
+            ' ontouchstart="startDrag(event,' + esc + ',' + di + ',' + ei + ')"' +
+            ' title="' + secsToTime(entry.time || 0) + '">' +
+            temp +
+            '<span class="circle-del" onclick="event.stopPropagation();removeSetpoint(' + esc + ',' + di + ',' + ei + ')">&#215;</span>' +
+            popHtml +
+          '</div>';
+        });
+        daysHtml += '<div class="sched-row">' +
+          '<span class="sched-day-label">' + DAY_NAMES[di] + '</span>' +
+          '<div class="sched-timeline">' + gridlines + circles + '</div>' +
+          '<div class="sched-row-add"><button onclick="addSetpoint(' + esc + ',' + di + ')" title="Add setpoint">+</button></div>' +
+        '</div>';
+      }
+      daysHtml += '</div>';
+
+      // Time axis
+      let axisHtml = '<div class="sched-axis">';
+      for (let h = 0; h < 24; h += 2) {
+        const label = is24 ? String(h).padStart(2,'0') : (h === 0 ? '12a' : h < 12 ? h + 'a' : h === 12 ? '12p' : (h-12) + 'p');
+        axisHtml += '<span class="sched-axis-label" style="flex:1">' + label + '</span>';
+      }
+      axisHtml += '</div>';
+
+      // Save row
+      const dirtyClass = sc.dirty ? '' : ' style="display:none"';
+      let saveHtml = '<div class="sched-save-row" id="schedSave_' + serial + '"' + dirtyClass + '>' +
+        '<button class="btn-primary" onclick="saveSchedule(' + esc + ')" style="font-size:12px;padding:5px 14px">Save Schedule</button>' +
+        '<span class="sched-save-msg" id="schedMsg_' + serial + '"></span>' +
+      '</div>';
+
+      return '<div class="sched-section open">' + modeHtml + daysHtml + axisHtml + saveHtml + '</div>';
+    }
+
+    function markDirty(serial) {
+      const sc = scheduleCache[serial];
+      if (sc) sc.dirty = true;
+      const el = document.getElementById('schedSave_' + serial);
+      if (el) el.style.display = 'flex';
+      const msg = document.getElementById('schedMsg_' + serial);
+      if (msg) msg.textContent = '';
+    }
+
+    function ensureDays(sched) {
+      if (!sched.days) sched.days = {};
+      for (let i = 0; i < 7; i++) {
+        if (!sched.days[String(i)]) sched.days[String(i)] = [];
+      }
+    }
+
+    function setSchedMode(serial, mode) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      sc.schedule.schedule_mode = mode;
+      markDirty(serial);
+      sendCommand(serial, 'set_schedule_mode', mode);
+      renderDevices(lastDevices);
+    }
+
+    function removeSetpoint(serial, dayIdx, entryIdx) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      ensureDays(sc.schedule);
+      const dk = String(dayIdx);
+      sc.schedule.days[dk].splice(entryIdx, 1);
+      markDirty(serial);
+      renderDevices(lastDevices);
+    }
+
+    function addSetpoint(serial, dayIdx) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      ensureDays(sc.schedule);
+      const mode = (sc.schedule.schedule_mode || 'HEAT').toUpperCase();
+      const dk = String(dayIdx);
+      const entries = sc.schedule.days[dk];
+      // Place 1h after last setpoint, or 7:00 AM if empty
+      const setpoints = entries.filter(e => e.entry_type !== 'continuation');
+      const lastTime = setpoints.length > 0 ? Math.max(...setpoints.map(e => e.time || 0)) + 3600 : 25200;
+      const newEntry = { type: mode, time: Math.min(lastTime, 82800), entry_type: 'setpoint' };
+      if (mode === 'RANGE') { newEntry['temp-min'] = 18.0; newEntry['temp-max'] = 22.0; }
+      else { newEntry.temp = 20.0; }
+      entries.push(newEntry);
+      markDirty(serial);
+      renderDevices(lastDevices);
+    }
+
+    // Drag to adjust time
+    let dragSuppressClick = false;
+    function startDrag(event, serial, dayIdx, entryIdx) {
+      event.preventDefault();
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      const dk = String(dayIdx);
+      const entry = sc.schedule.days[dk][entryIdx];
+      if (!entry) return;
+
+      const circle = event.target.closest('.sched-circle');
+      const timeline = circle.parentElement;
+      const rect = timeline.getBoundingClientRect();
+      let moved = false;
+
+      // Create floating time label
+      const label = document.createElement('span');
+      label.className = 'sched-drag-label';
+      label.textContent = secsToTime(entry.time || 0);
+      circle.appendChild(label);
+
+      function onMove(e) {
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const pct = (clientX - rect.left) / rect.width;
+        const timeSecs = Math.round(Math.max(0, Math.min(pct, 1)) * 86400 / 900) * 900;
+        entry.time = timeSecs;
+        circle.style.left = ((timeSecs / 86400) * 100) + '%';
+        circle.title = secsToTime(timeSecs);
+        label.textContent = secsToTime(timeSecs);
+        moved = true;
+      }
+      function onEnd() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        label.remove();
+        if (moved) {
+          dragSuppressClick = true;
+          setTimeout(() => { dragSuppressClick = false; }, 50);
+          markDirty(serial);
+          renderDevices(lastDevices);
+        }
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, {passive: false});
+      document.addEventListener('touchend', onEnd);
+    }
+
+    let activePopover = null; // {serial, dayIdx, entryIdx}
+
+    function editSetpoint(serial, dayIdx, entryIdx) {
+      if (dragSuppressClick) return; // Don't open popover after a drag
+      // If clicking the same circle, close it
+      if (activePopover && activePopover.serial === serial &&
+          activePopover.dayIdx === dayIdx && activePopover.entryIdx === entryIdx) {
+        closePopover();
+        return;
+      }
+      closePopover();
+      activePopover = {serial, dayIdx, entryIdx};
+      renderDevices(lastDevices);
+    }
+
+    function closePopover() {
+      if (!activePopover) return;
+      activePopover = null;
+      renderDevices(lastDevices);
+    }
+
+    // Click outside to close popover
+    document.addEventListener('click', function(e) {
+      if (!activePopover) return;
+      if (e.target.closest('.sched-circle') || e.target.closest('.sched-popover')) return;
+      closePopover();
+    });
+
+    function adjustSetpointTemp(serial, dayIdx, entryIdx, field, delta) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      const d = lastDevices.find(x => x.serial === serial);
+      const scale = d ? (d.temperature_scale || 'F') : 'F';
+      const step = scale === 'F' ? (5/9) : 0.5; // 1°F or 0.5°C in Celsius
+      const dk = String(dayIdx);
+      const entry = sc.schedule.days[dk][entryIdx];
+      if (!entry) return;
+      const cur = entry[field] || 20;
+      entry[field] = Math.max(4.5, Math.min(32.0, cur + delta * step));
+      markDirty(serial);
+      // Keep popover open during adjustment
+      activePopover = {serial, dayIdx, entryIdx};
+      renderDevices(lastDevices);
+    }
+
+    function typeSetpointTemp(serial, dayIdx, entryIdx, field, inputEl) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      const d = lastDevices.find(x => x.serial === serial);
+      const scale = d ? (d.temperature_scale || 'F') : 'F';
+      const dk = String(dayIdx);
+      const entry = sc.schedule.days[dk][entryIdx];
+      if (!entry) return;
+      let val = parseFloat(inputEl.value);
+      if (isNaN(val)) return;
+      const celsius = scale === 'F' ? f2c(val) : val;
+      entry[field] = Math.max(4.5, Math.min(32.0, celsius));
+      markDirty(serial);
+    }
+
+    function buildPopoverHtml(serial, dayIdx, entryIdx, scale) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return '';
+      const dk = String(dayIdx);
+      const entry = sc.schedule.days[dk][entryIdx];
+      if (!entry) return '';
+      const mode = (entry.type || sc.schedule.schedule_mode || 'HEAT').toUpperCase();
+      const args = "'" + serial + "'," + dayIdx + "," + entryIdx;
+
+      function tempGroup(field, label) {
+        const raw = entry[field];
+        const display = raw != null ? (scale === 'F' ? Math.round(c2f(raw)) : Math.round(raw * 2) / 2) : '--';
+        const prefix = label ? '<span class="sched-pop-unit">' + label + '</span>' : '';
+        return '<div class="sched-pop-group">' +
+          prefix +
+          '<button class="sched-pop-btn" onclick="event.stopPropagation();adjustSetpointTemp(' + args + ',\'' + field + '\',-1)">−</button>' +
+          '<input class="sched-pop-val" value="' + display + '" size="3"' +
+          ' onchange="typeSetpointTemp(' + args + ',\'' + field + '\',this)"' +
+          ' onclick="event.stopPropagation();this.select()">' +
+          '<button class="sched-pop-btn" onclick="event.stopPropagation();adjustSetpointTemp(' + args + ',\'' + field + '\',1)">+</button>' +
+        '</div>';
+      }
+
+      let inner = '';
+      if (mode === 'RANGE') {
+        inner = tempGroup('temp-min', '') +
+          '<span class="sched-pop-sep">–</span>' +
+          tempGroup('temp-max', '');
+      } else {
+        inner = tempGroup('temp', '');
+      }
+      inner += '<span class="sched-pop-unit">\u00B0' + scale + '</span>';
+
+      return '<div class="sched-popover" onclick="event.stopPropagation()">' + inner + '</div>';
+    }
+
+    async function saveSchedule(serial) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      const msg = document.getElementById('schedMsg_' + serial);
+      if (msg) { msg.textContent = 'Saving...'; msg.style.color = 'var(--text2)'; }
+      // Send with dict-of-dicts format (device native format)
+      const payload = Object.assign({}, sc.schedule, { days: denormalizeDays(sc.schedule.days) });
+      const result = await sendCommand(serial, 'set_schedule', payload);
+      if (result && result.success) {
+        sc.dirty = false;
+        if (msg) { msg.textContent = 'Saved'; msg.style.color = 'var(--accent)'; }
+        const saveEl = document.getElementById('schedSave_' + serial);
+        if (saveEl) setTimeout(() => { saveEl.style.display = 'none'; }, 1500);
+      } else {
+        if (msg) { msg.textContent = (result && result.message) || 'Save failed'; msg.style.color = '#dc2626'; }
+      }
+    }
+
+    function getHvacState(d) {
+      const h = d.hvac || {};
+      const heating = h.heater || h.alt_heat || h.heat_x2 || h.heat_x3;
+      const auxHeat = h.aux_heat;
+      const emerHeat = h.emer_heat;
+      const cooling = h.ac || h.cool_x2 || h.cool_x3;
+      const fanCooling = h.fan_cooling;
+      const fan = h.fan || d.fan_timer_active;
+      const humidifier = h.humidifier;
+      const dehumidifier = h.dehumidifier || h.auto_dehum;
+      const anyHeat = heating || auxHeat || emerHeat;
+      const anyCool = cooling || fanCooling;
+      return { heating, auxHeat, emerHeat, cooling, fanCooling, fan, humidifier, dehumidifier, anyHeat, anyCool };
+    }
+
+    function cardGlowClass(st) {
+      let cls = '';
+      if (st.anyHeat) cls += ' glow-heat';
+      if (st.anyCool) cls += ' glow-cool';
+      return cls;
+    }
+
+    function renderAccentStrip(st) { return ''; }
+
+    function renderHvacStatus(d) {
+      const st = getHvacState(d);
+      let pills = '';
+
+      // Emergency heat
+      if (st.emerHeat) {
+        pills += '<span class="hvac-pill pill-emer"><i class="mdi mdi-alert-circle"></i> Emergency Heat</span>';
+      }
+      // Aux heat
+      if (st.auxHeat) {
+        pills += '<span class="hvac-pill pill-heat"><i class="mdi mdi-radiator"></i> Aux Heat</span>';
+      }
+      // Primary heating
+      if (st.heating) {
+        const stage = d.hvac.heat_x3 ? ' (Stage 3)' : d.hvac.heat_x2 ? ' (Stage 2)' : '';
+        pills += '<span class="hvac-pill pill-heat"><i class="mdi mdi-fire"></i> Heating' + stage + '</span>';
+      }
+      // Primary cooling
+      if (st.cooling) {
+        const stage = d.hvac.cool_x3 ? ' (Stage 3)' : d.hvac.cool_x2 ? ' (Stage 2)' : '';
+        pills += '<span class="hvac-pill pill-cool"><i class="mdi mdi-snowflake"></i> Cooling' + stage + '</span>';
+      }
+      // Airwave (fan cooling)
+      if (st.fanCooling) {
+        pills += '<span class="hvac-pill pill-cool"><i class="mdi mdi-weather-windy"></i> Airwave</span>';
+      }
+      // Fan
+      if (st.fan) {
+        pills += '<span class="hvac-pill pill-fan"><i class="mdi mdi-fan fan-spin"></i> Fan</span>';
+      }
+      // Humidifier with intensity gauge
+      if (st.humidifier && d.target_humidity_enabled && d.humidity != null && d.target_humidity != null) {
+        const current = d.humidity;
+        const target = d.target_humidity;
+        const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+        const gap = target - current;
+        const intensity = gap > 20 ? 'High' : gap > 10 ? 'Med' : 'Low';
+        pills += '<span class="hvac-pill pill-humid"><i class="mdi mdi-water"></i>' +
+          '<span class="humid-gauge">' +
+            '<span class="humid-bar-track"><span class="humid-bar-fill" style="width:' + pct + '%"></span></span>' +
+            '<span class="humid-label">' + current + ' \u2192 ' + target + '%</span>' +
+          '</span>' +
+        '</span>';
+      } else if (st.humidifier) {
+        pills += '<span class="hvac-pill pill-humid"><i class="mdi mdi-water"></i> Humidifying</span>';
+      }
+      // Dehumidifier
+      if (st.dehumidifier) {
+        pills += '<span class="hvac-pill pill-humid"><i class="mdi mdi-water-off"></i> Dehumidifying</span>';
+      }
+
+      return pills ? '<div class="hvac-status">' + pills + '</div>' : '';
+    }
+
     let lastDevices = [];
 
     function renderDevices(devices) {
@@ -373,13 +1054,9 @@
         const tHigh = p.high ?? d.target_temperature_high;
         const S = d.serial, esc = "'" + S + "'";
 
-        // HVAC
-        let hvac = '';
-        if (d.hvac_state === 'heating') hvac = '<span class="hvac-indicator heating"><i class="mdi mdi-fire"></i></span>';
-        else if (d.hvac_state === 'cooling') hvac = '<span class="hvac-indicator cooling"><i class="mdi mdi-snowflake"></i></span>';
-
-        // Humidity
-        let hum = d.humidity != null ? '<span class="temp-humidity"><i class="mdi mdi-water-percent"></i>' + d.humidity + '%</span>' : '';
+        // HVAC state
+        const hvacSt = getHvacState(d);
+        const hvacStatusHtml = renderHvacStatus(d);
 
         // Last seen
         let ls = !on && d.last_seen ? '<div class="card-last-seen">' + relativeTime(d.last_seen) + '</div>' : '';
@@ -421,8 +1098,12 @@
         }).join('');
 
         const eco = d.has_leaf || d.away;
+        const schedOpen = scheduleCache[S] && scheduleCache[S].open;
+        const schedToggleCls = 'sched-toggle' + (schedOpen ? ' open' : '');
+        const schedHtml = renderScheduleSection(S, scale, d.schedule_mode);
 
-        return '<div class="device-card">' +
+        return '<div class="device-card' + cardGlowClass(hvacSt) + '">' +
+          renderAccentStrip(hvacSt) +
           '<div class="card-row-top">' +
             '<div class="card-identity">' +
               '<span class="online-dot ' + (on ? 'on' : 'off') + '"></span>' +
@@ -432,7 +1113,7 @@
                 ls +
               '</div>' +
             '</div>' +
-            '<div class="card-meta">' + hvac +
+            '<div class="card-meta">' +
               (d.humidity != null ? '<span><i class="mdi mdi-water-percent"></i> ' + d.humidity + '%</span>' : '') +
               '<button class="btn-delete" onclick="deleteDevice(' + esc + ')" title="Remove"><i class="mdi mdi-trash-can-outline"></i></button>' +
             '</div>' +
@@ -446,11 +1127,16 @@
             '</div>' +
             targetHtml +
           '</div>' +
+          hvacStatusHtml +
           '<div class="card-row-controls">' +
             '<div class="mode-seg">' + modeBtns + '</div>' +
             '<button class="' + (eco ? 'eco-btn active' : 'eco-btn') + '" onclick="toggleEco(' + esc + ',' + eco + ')">' +
               '<i class="mdi mdi-leaf"></i> Eco</button>' +
           '</div>' +
+          '<button class="' + schedToggleCls + '" onclick="toggleSchedule(' + esc + ')">' +
+            '<i class="mdi mdi-chevron-right"></i> Schedule' +
+          '</button>' +
+          schedHtml +
         '</div>';
       }).join('') + '</div>';
     }

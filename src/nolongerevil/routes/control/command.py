@@ -2,12 +2,14 @@
 
 import time
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from typing import Any
 
 from aiohttp import web
 
 from nolongerevil.lib.consts import API_MODE_TO_NEST, ApiMode
 from nolongerevil.lib.logger import get_logger
+from nolongerevil.lib.types import DeviceObject
 from nolongerevil.services.device_state_service import DeviceStateService
 from nolongerevil.services.subscription_manager import SubscriptionManager
 from nolongerevil.utils.structure_assignment import derive_structure_id
@@ -182,6 +184,124 @@ async def set_eco_temperatures(
     return validate_and_clamp_temperatures(values, bounds, serial)
 
 
+VALID_SCHEDULE_MODES = {"HEAT", "COOL", "RANGE"}
+TEMP_MIN_C = 4.5
+TEMP_MAX_C = 32.0
+
+
+def validate_schedule(value: dict[str, Any]) -> dict[str, Any]:
+    """Validate a full schedule payload.
+
+    Args:
+        value: Schedule dict with ver, schedule_mode, days, etc.
+
+    Returns:
+        Validated schedule dict
+
+    Raises:
+        CommandError: If validation fails
+    """
+    if not isinstance(value, dict):
+        raise CommandError("Schedule must be a JSON object")
+    if value.get("ver") != 2:
+        raise CommandError("Schedule ver must be 2")
+
+    mode = value.get("schedule_mode") or value.get("mode")
+    if not mode or mode.upper() not in VALID_SCHEDULE_MODES:
+        raise CommandError(f"schedule_mode must be one of: {', '.join(VALID_SCHEDULE_MODES)}")
+    mode = mode.upper()
+
+    days = value.get("days")
+    if not isinstance(days, dict):
+        raise CommandError("Schedule must contain a 'days' object")
+
+    for day_key in days:
+        if day_key not in {"0", "1", "2", "3", "4", "5", "6"}:
+            raise CommandError(f"Invalid day key '{day_key}' (must be '0'-'6', Monday-Sunday)")
+        day_entries = days[day_key]
+        # Accept both list and dict-of-dicts (device native format)
+        if isinstance(day_entries, dict):
+            day_entries = [day_entries[k] for k in sorted(day_entries.keys(), key=int)]
+        elif not isinstance(day_entries, list):
+            raise CommandError(f"Day '{day_key}' must be a list or dict of setpoints")
+        for i, entry in enumerate(day_entries):
+            if not isinstance(entry, dict):
+                raise CommandError(f"Day '{day_key}' entry {i}: must be an object")
+            if "time" not in entry:
+                raise CommandError(f"Day '{day_key}' entry {i}: missing 'time'")
+            t = entry["time"]
+            if not isinstance(t, (int, float)) or t < 0 or t >= 86400:
+                raise CommandError(f"Day '{day_key}' entry {i}: time must be 0-86399")
+            if "type" not in entry:
+                raise CommandError(f"Day '{day_key}' entry {i}: missing 'type'")
+            entry_mode = entry["type"].upper()
+            if entry_mode not in VALID_SCHEDULE_MODES:
+                raise CommandError(f"Day '{day_key}' entry {i}: invalid type '{entry['type']}'")
+            # Validate temperatures
+            if entry_mode == "RANGE":
+                for k in ("temp-min", "temp-max"):
+                    if k not in entry:
+                        raise CommandError(f"Day '{day_key}' entry {i}: RANGE requires '{k}'")
+                    temp = float(entry[k])
+                    if temp < TEMP_MIN_C or temp > TEMP_MAX_C:
+                        raise CommandError(
+                            f"Day '{day_key}' entry {i}: {k}={temp} outside {TEMP_MIN_C}-{TEMP_MAX_C}C"
+                        )
+            elif "temp" in entry:
+                temp = float(entry["temp"])
+                if temp < TEMP_MIN_C or temp > TEMP_MAX_C:
+                    raise CommandError(
+                        f"Day '{day_key}' entry {i}: temp={temp} outside {TEMP_MIN_C}-{TEMP_MAX_C}C"
+                    )
+
+    # Return canonical form
+    return {
+        "ver": 2,
+        "name": value.get("name", ""),
+        "schedule_mode": mode,
+        "days": days,
+    }
+
+
+async def set_schedule(
+    _state_service: DeviceStateService,
+    _serial: str,
+    value: Any,
+) -> dict[str, Any]:
+    """Set the full weekly schedule (complete replacement).
+
+    Args:
+        _state_service: Device state service (unused)
+        _serial: Device serial (unused)
+        value: Full schedule JSON
+
+    Returns:
+        Validated schedule dict
+    """
+    return validate_schedule(value)
+
+
+async def set_schedule_mode(
+    _state_service: DeviceStateService,
+    _serial: str,
+    value: str,
+) -> dict[str, Any]:
+    """Set schedule mode (HEAT/COOL/RANGE) in the shared bucket.
+
+    Args:
+        _state_service: Device state service (unused)
+        _serial: Device serial (unused)
+        value: Mode string
+
+    Returns:
+        Updated values
+    """
+    mode = value.upper() if isinstance(value, str) else str(value).upper()
+    if mode not in VALID_SCHEDULE_MODES:
+        raise CommandError(f"schedule_mode must be one of: {', '.join(VALID_SCHEDULE_MODES)}")
+    return {"schedule_mode": mode}
+
+
 # Command registry
 COMMAND_HANDLERS: dict[str, CommandHandler] = {
     "set_temperature": set_temperature,
@@ -189,6 +309,8 @@ COMMAND_HANDLERS: dict[str, CommandHandler] = {
     "set_away": set_away,
     "set_fan": set_fan,
     "set_eco_temperatures": set_eco_temperatures,
+    "set_schedule": set_schedule,
+    "set_schedule_mode": set_schedule_mode,
 }
 
 # Object key routing for each command
@@ -198,6 +320,8 @@ COMMAND_OBJECT_KEYS: dict[str, str] = {
     "set_away": "structure",
     "set_fan": "device",
     "set_eco_temperatures": "device",
+    "set_schedule": "schedule",
+    "set_schedule_mode": "shared",
 }
 
 
@@ -251,6 +375,8 @@ async def execute_command(
             if owner:
                 structure_id = derive_structure_id(owner.user_id)
         object_key = f"structure.{structure_id}"
+    elif key_type == "schedule":
+        object_key = f"schedule.{serial}"
     elif key_type == "shared":
         object_key = f"shared.{serial}"
     else:
@@ -259,13 +385,26 @@ async def execute_command(
     # Update state
     existing_obj = state_service.get_object(serial, object_key)
     new_revision = (existing_obj.object_revision if existing_obj else 0) + 1
-    updated_obj = await state_service.merge_object_values(
-        serial=serial,
-        object_key=object_key,
-        values=values,
-        revision=new_revision,
-        timestamp=int(time.time() * 1000),
-    )
+
+    if key_type == "schedule":
+        # Schedules are always full replacements, not merges
+        updated_obj = DeviceObject(
+            serial=serial,
+            object_key=object_key,
+            object_revision=new_revision,
+            object_timestamp=int(time.time() * 1000),
+            value=values,
+            updated_at=datetime.now(),
+        )
+        await state_service.upsert_object(updated_obj)
+    else:
+        updated_obj = await state_service.merge_object_values(
+            serial=serial,
+            object_key=object_key,
+            values=values,
+            revision=new_revision,
+            timestamp=int(time.time() * 1000),
+        )
 
     # Notify subscribers
     await subscription_manager.notify_all_subscribers(serial, [updated_obj])

@@ -57,13 +57,30 @@ def format_device_status(
         "target_temperature_low": shared_values.get("target_temperature_low")
         or device_values.get("target_temperature_low"),
         "humidity": device_values.get("current_humidity"),
+        "target_humidity": device_values.get("target_humidity"),
+        "target_humidity_enabled": bool(device_values.get("target_humidity_enabled")),
         "mode": shared_values.get("target_temperature_type")
         or device_values.get("target_temperature_type"),
-        "hvac_state": shared_values.get("hvac_heater_state")
-        or shared_values.get("hvac_ac_state")
-        or device_values.get("hvac_heater_state")
-        or device_values.get("hvac_ac_state"),
+        "hvac": {
+            # HVAC runtime states are in the SHARED bucket, not device
+            "heater": bool(shared_values.get("hvac_heater_state")),
+            "heat_x2": bool(shared_values.get("hvac_heat_x2_state")),
+            "heat_x3": bool(shared_values.get("hvac_heat_x3_state")),
+            "ac": bool(shared_values.get("hvac_ac_state")),
+            "cool_x2": bool(shared_values.get("hvac_cool_x2_state")),
+            "cool_x3": bool(shared_values.get("hvac_cool_x3_state")),
+            "fan": bool(shared_values.get("hvac_fan_state")),
+            "aux_heat": bool(shared_values.get("hvac_aux_heater_state")),
+            "emer_heat": bool(shared_values.get("hvac_emer_heat_state")),
+            "alt_heat": bool(shared_values.get("hvac_alt_heat_state")),
+            # These remain in the device bucket
+            "humidifier": bool(device_values.get("humidifier_state")),
+            "dehumidifier": bool(device_values.get("dehumidifier_state")),
+            "auto_dehum": bool(device_values.get("auto_dehum_state")),
+            "fan_cooling": bool(device_values.get("fan_cooling_state")),
+        },
         "fan_timer_active": bool(device_values.get("fan_timer_timeout", 0)),
+        "fan_timer_timeout": device_values.get("fan_timer_timeout", 0),
         "eco_temperatures": {
             "high": device_values.get("eco_temperature_high"),
             "low": device_values.get("eco_temperature_low"),
@@ -78,6 +95,7 @@ def format_device_status(
     if shared_values:
         status["structure_id"] = shared_values.get("structure_id")
         status["away"] = shared_values.get("away", False)
+        status["schedule_mode"] = shared_values.get("schedule_mode")
 
     return status
 
@@ -144,6 +162,36 @@ async def handle_devices(request: web.Request) -> web.Response:
             "total": len(devices),
         }
     )
+
+
+async def handle_schedule(request: web.Request) -> web.Response:
+    """Handle GET /api/schedule - get device schedule.
+
+    Query parameters:
+        serial: Device serial (required)
+
+    Returns:
+        JSON response with schedule data
+    """
+    serial = request.query.get("serial")
+    if not serial:
+        return web.json_response(
+            {"error": "Serial parameter required"},
+            status=400,
+        )
+
+    state_service: DeviceStateService = request.app["state_service"]
+    schedule_obj = state_service.get_object(serial, f"schedule.{serial}")
+
+    if not schedule_obj:
+        return web.json_response({"serial": serial, "schedule": None})
+
+    return web.json_response({
+        "serial": serial,
+        "schedule": schedule_obj.value,
+        "object_revision": schedule_obj.object_revision,
+        "object_timestamp": schedule_obj.object_timestamp,
+    })
 
 
 async def handle_notify_device(request: web.Request) -> web.Response:
@@ -355,6 +403,7 @@ def create_status_routes(
 
     app.router.add_get("/status", handle_status)
     app.router.add_get("/api/devices", handle_devices)
+    app.router.add_get("/api/schedule", handle_schedule)
     app.router.add_post("/notify-device", handle_notify_device)
     app.router.add_get("/api/stats", handle_stats)
     app.router.add_post("/api/dismiss-pairing/{serial}", handle_dismiss_pairing)
