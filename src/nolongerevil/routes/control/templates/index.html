@@ -313,6 +313,28 @@
       .eco-btn.active { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
       .eco-btn.auto-eco { color: #d97706; border-color: rgba(217, 119, 6, 0.25); }
     }
+    /* Eco mode target display */
+    .eco-target { text-align: center; padding: 2px 0; }
+    .eco-target-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: #b45309;
+    }
+    .eco-target-value {
+      font-size: 24px; font-weight: 700; color: #b45309;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+    }
+    .eco-schedule-hint { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .eco-range-display {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+    }
+    .eco-range-group { text-align: center; }
+    .eco-range-sep { color: var(--text3); font-size: 18px; }
+    .temp-btn.disabled, .range-btn.disabled {
+      opacity: 0.25; pointer-events: none; cursor: default;
+    }
+    @media (prefers-color-scheme: dark) {
+      .eco-target-label, .eco-target-value { color: #d97706; }
+    }
     .fan-seg {
       display: inline-flex; background: var(--bg);
       border-radius: 10px; padding: 3px; gap: 2px;
@@ -1168,10 +1190,48 @@
         const leaf = d.has_leaf;
         const leafHtml = leaf ? '<span class="leaf-badge" title="Energy-saving temperature"><i class="mdi mdi-leaf"></i></span>' : '';
 
+        // Eco state — manual-eco (user set) or auto-eco (occupancy/away)
+        const eco = d.eco_mode === 'manual-eco';
+        const autoEco = d.eco_mode === 'auto-eco';
+        const inEco = eco || autoEco;
+
         // Target controls
         let targetHtml = '';
         if (mk === 'off' || mk === 'emergency') {
           // nothing
+        } else if (inEco) {
+          const ecoTemps = d.eco_temperatures || {};
+          if (mk === 'auto') {
+            targetHtml = '<div>' +
+              '<div class="target-range">' +
+                '<div class="range-group">' +
+                  '<span class="range-label eco-target-label">Eco Low</span>' +
+                  '<button class="range-btn disabled" disabled>−</button>' +
+                  '<span class="range-value eco-target-value" style="font-size:inherit">' + fmtTemp(ecoTemps.low, scale) + '</span>' +
+                  '<button class="range-btn disabled" disabled>+</button>' +
+                '</div>' +
+                '<span class="range-sep">–</span>' +
+                '<div class="range-group">' +
+                  '<span class="range-label eco-target-label">Eco High</span>' +
+                  '<button class="range-btn disabled" disabled>−</button>' +
+                  '<span class="range-value eco-target-value" style="font-size:inherit">' + fmtTemp(ecoTemps.high, scale) + '</span>' +
+                  '<button class="range-btn disabled" disabled>+</button>' +
+                '</div>' +
+              '</div>' +
+              '<div class="eco-schedule-hint" style="text-align:center">Schedule: ' + fmtTemp(tLow, scale) + ' \u2013 ' + fmtTemp(tHigh, scale) + '</div>' +
+            '</div>';
+          } else {
+            const ecoTemp = mk === 'cool' ? ecoTemps.high : ecoTemps.low;
+            const ecoLabel = mk === 'cool' ? 'Eco Max' : 'Eco Min';
+            targetHtml = '<div>' +
+              '<div class="target-single">' +
+                '<button class="temp-btn disabled" disabled>−</button>' +
+                '<div class="target-info"><div class="target-label eco-target-label">' + ecoLabel + '</div><div class="target-value eco-target-value" style="font-size:inherit">' + fmtTemp(ecoTemp, scale) + leafHtml + '</div></div>' +
+                '<button class="temp-btn disabled" disabled>+</button>' +
+              '</div>' +
+              '<div class="eco-schedule-hint" style="text-align:center">Schedule: ' + fmtTemp(tgt, scale) + '</div>' +
+            '</div>';
+          }
         } else if (mk === 'auto') {
           targetHtml = '<div class="target-range">' +
             '<div class="range-group">' +
@@ -1213,10 +1273,6 @@
           const apiVal = m === 'auto' ? 'heat-cool' : m === 'emer' ? 'emergency' : m;
           return '<button class="' + cls + '" onclick="setMode(' + q + ',\'' + apiVal + '\')" title="' + modeTips[m] + '">' + modeLabels[m] + '</button>';
         }).join('');
-
-        // Eco state — manual-eco (user set) or auto-eco (occupancy/away)
-        const eco = d.eco_mode === 'manual-eco';
-        const autoEco = d.eco_mode === 'auto-eco';
 
         // Fan controls — inline in control row
         const hasFan = cap.has_fan;
