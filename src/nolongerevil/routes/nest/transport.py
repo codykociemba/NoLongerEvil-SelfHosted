@@ -913,25 +913,12 @@ async def handle_transport_put(request: web.Request) -> web.Response:
             f"{len(response_objects)} object(s) updated"
         )
 
-    # Include shared.{serial} in PUT response to ensure device gets temperature updates
-    # This provides a reliable sync point since PUT always gets a response
-    shared_key = f"shared.{serial}"
-    shared_obj = state_service.get_object(serial, shared_key)
-    if shared_obj:
-        # Check if shared wasn't already in response
-        shared_keys_in_response = [obj.get("object_key") for obj in response_objects]
-        if shared_key not in shared_keys_in_response:
-            response_objects.append(
-                {
-                    "object_key": shared_obj.object_key,
-                    "object_revision": shared_obj.object_revision,
-                    "object_timestamp": shared_obj.object_timestamp,
-                    "value": shared_obj.value,
-                }
-            )
-            logger.debug(
-                f"PUT: Added shared.{serial} to response (rev={shared_obj.object_revision})"
-            )
+    # NOTE: Previously piggybacked shared.{serial} on every PUT response as a
+    # "reliable sync point."  This caused stale target_temperature values from
+    # old user commands to be re-pushed to the device after server restarts or
+    # eco-exit, overriding the device's schedule-derived setpoint.  The subscribe
+    # path already handles pushing newer server data via timestamp comparison,
+    # which is the correct mechanism.  Removed 2026-02-09.
 
     return web.json_response(
         {"objects": response_objects},
