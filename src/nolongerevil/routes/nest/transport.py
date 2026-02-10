@@ -821,7 +821,6 @@ async def handle_transport_put(request: web.Request) -> web.Response:
         return web.Response(text="Invalid request: objects array required", status=400)
 
     state_service: DeviceStateService = request.app["state_service"]
-    subscription_manager: SubscriptionManager = request.app["subscription_manager"]
 
     weave_device_id = extract_weave_device_id(request)
     response_objects: list[dict[str, Any]] = []
