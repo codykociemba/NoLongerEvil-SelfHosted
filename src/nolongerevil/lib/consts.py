@@ -66,7 +66,7 @@ class ApiMode(StrEnum):
     HEAT_COOL = "heat-cool"
     RANGE = "range"
     AUTO = "auto"
-    ECO = "eco"
+    EMERGENCY = "emergency"
 
 
 # --- Nest enums ---
@@ -79,7 +79,7 @@ class NestMode(StrEnum):
     HEAT = "heat"
     COOL = "cool"
     RANGE = "range"
-    ECO = "eco"
+    EMERGENCY = "emergency"
 
 
 class NestEcoMode(StrEnum):
@@ -99,7 +99,7 @@ API_MODE_TO_NEST: dict[ApiMode, NestMode] = {
     ApiMode.HEAT_COOL: NestMode.RANGE,
     ApiMode.RANGE: NestMode.RANGE,
     ApiMode.AUTO: NestMode.RANGE,
-    ApiMode.ECO: NestMode.ECO,
+    ApiMode.EMERGENCY: NestMode.EMERGENCY,
 }
 
 # Nest mode to HA mode mapping
@@ -108,7 +108,7 @@ NEST_MODE_TO_HA: dict[NestMode, HaMode] = {
     NestMode.HEAT: HaMode.HEAT,
     NestMode.COOL: HaMode.COOL,
     NestMode.RANGE: HaMode.HEAT_COOL,
-    NestMode.ECO: HaMode.OFF,  # Eco is a preset, maps to off for HA mode
+    NestMode.EMERGENCY: HaMode.HEAT,  # Emergency heat is a heating mode
 }
 
 # HA mode to Nest mode mapping

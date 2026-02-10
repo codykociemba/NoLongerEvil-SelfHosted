@@ -1,4 +1,28 @@
-"""MQTT integration for Home Assistant and other MQTT consumers."""
+"""MQTT integration for Home Assistant and other MQTT consumers.
+
+Bidirectional bridge between device state and MQTT:
+
+Outbound (device → MQTT):
+- Receives device state changes via on_device_state_change() callback,
+  called by the state service whenever a device object is upserted.
+- Publishes HA state to {prefix}/{serial}/ha/state (JSON)
+- Republishes HA discovery config on every state change (required because
+  heat-cool mode changes the set of temperature topics the climate entity
+  exposes)
+
+Inbound (MQTT → device):
+- Subscribes to two command topic patterns:
+    {prefix}/+/+/+/set     — raw field writes (e.g., .../shared/target_temperature/set)
+    {prefix}/+/ha/+/set    — HA-native commands (e.g., .../ha/mode/set)
+- Dispatches commands via execute_command() from command.py, which merges
+  into the correct bucket and pushes to the device via
+  subscription_manager.notify_all_subscribers()
+
+Eco mode:
+- HA "eco" preset maps to set_away(True) → manual_eco_all in structure bucket
+- Uses manual_eco_all instead of away because the firmware's schedule
+  preconditioning reverts auto-eco but respects manual-eco.
+"""
 
 import asyncio
 import contextlib
@@ -35,7 +59,7 @@ from nolongerevil.integrations.mqtt.topic_builder import (
     build_state_topic,
     parse_object_key,
 )
-from nolongerevil.lib.consts import HaPreset, NestEcoMode
+from nolongerevil.lib.consts import HaPreset
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.types import DeviceStateChange, IntegrationConfig
 from nolongerevil.routes.control.command import CommandError, execute_command
@@ -214,6 +238,12 @@ class MqttIntegration(BaseIntegration):
             logger.warning(f"Device {serial} not fully initialized")
             return
 
+        if not self._subscription_manager:
+            logger.warning(
+                f"Cannot execute command '{command}' for {serial}: no subscription manager"
+            )
+            return
+
         try:
             if command == "mode":
                 await execute_command(
@@ -265,26 +295,28 @@ class MqttIntegration(BaseIntegration):
 
             elif command == "preset":
                 if payload.lower() == HaPreset.AWAY:
-                    await self._update_device_fields(
+                    await execute_command(
+                        self._state_service,
+                        self._subscription_manager,
                         serial,
-                        device_obj,
-                        {
-                            "auto_away": 2,
-                            "away": True,
-                        },
+                        "set_away",
+                        True,
                     )
                 elif payload.lower() == HaPreset.HOME:
-                    await self._update_device_fields(
+                    await execute_command(
+                        self._state_service,
+                        self._subscription_manager,
                         serial,
-                        device_obj,
-                        {
-                            "auto_away": 0,
-                            "away": False,
-                        },
+                        "set_away",
+                        False,
                     )
                 elif payload.lower() == HaPreset.ECO:
-                    await self._update_device_value(
-                        serial, device_obj, "eco", {"mode": NestEcoMode.MANUAL, "leaf": True}
+                    await execute_command(
+                        self._state_service,
+                        self._subscription_manager,
+                        serial,
+                        "set_away",
+                        True,
                     )
 
             elif command == "fan_duration":
@@ -373,34 +405,6 @@ class MqttIntegration(BaseIntegration):
         if self._subscription_manager:
             await self._subscription_manager.notify_all_subscribers(serial, [obj])
 
-    async def _update_shared_value(
-        self, serial: str, current_obj: Any, field: str, value: Any
-    ) -> None:
-        """Update a field in the shared object."""
-        from datetime import datetime
-
-        from nolongerevil.lib.types import DeviceObject
-
-        object_key = f"shared.{serial}"
-        new_value = {**current_obj.value, field: value}
-        new_revision = current_obj.object_revision + 1
-        new_timestamp = int(time.time() * 1000)
-
-        obj = DeviceObject(
-            serial=serial,
-            object_key=object_key,
-            object_revision=new_revision,
-            object_timestamp=new_timestamp,
-            value=new_value,
-            updated_at=datetime.now(),
-        )
-        await self._state_service.upsert_object(obj)
-        logger.info(f"Applied MQTT command to {serial}: {{{field}: {value}}}")
-
-        # Push to subscribed device immediately
-        if self._subscription_manager:
-            await self._subscription_manager.notify_all_subscribers(serial, [obj])
-
     async def _update_device_value(
         self, serial: str, current_obj: Any, field: str, value: Any
     ) -> None:
@@ -429,52 +433,25 @@ class MqttIntegration(BaseIntegration):
         if self._subscription_manager:
             await self._subscription_manager.notify_all_subscribers(serial, [obj])
 
-    async def _update_device_fields(
-        self, serial: str, current_obj: Any, fields: dict[str, Any]
-    ) -> None:
-        """Update multiple fields in the device object atomically."""
-        from datetime import datetime
-
-        from nolongerevil.lib.types import DeviceObject
-
-        object_key = f"device.{serial}"
-        new_value = {**current_obj.value, **fields}
-        new_revision = current_obj.object_revision + 1
-        new_timestamp = int(time.time() * 1000)
-
-        obj = DeviceObject(
-            serial=serial,
-            object_key=object_key,
-            object_revision=new_revision,
-            object_timestamp=new_timestamp,
-            value=new_value,
-            updated_at=datetime.now(),
-        )
-        await self._state_service.upsert_object(obj)
-        logger.info(f"Applied MQTT command to {serial}: {fields}")
-
-        # Push to subscribed device immediately
-        if self._subscription_manager:
-            await self._subscription_manager.notify_all_subscribers(serial, [obj])
-
     async def on_device_state_change(self, change: DeviceStateChange) -> None:
         """Handle device state change by publishing to MQTT."""
         if not self._connected or not self._active_client:
             return
 
-        object_type, serial = parse_object_key(change.object_key)
+        object_type, _ = parse_object_key(change.object_key)
+        serial = change.serial
 
-        if object_type not in ("device", "shared"):
+        if object_type not in ("device", "shared", "structure"):
             return
 
         try:
-            # Publish raw state
-            if self._publish_raw:
+            # Publish raw state (device and shared only)
+            if self._publish_raw and object_type in ("device", "shared"):
                 await self._publish_raw_state(
                     self._active_client, serial, object_type, change.new_value
                 )
 
-            # Publish HA state
+            # Publish HA state (structure changes affect preset mode)
             if self._ha_discovery:
                 await self._publish_ha_state(self._active_client, serial)
         except Exception as e:
@@ -499,6 +476,22 @@ class MqttIntegration(BaseIntegration):
             field_topic = build_state_topic(prefix, serial, object_type, field)
             payload = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
             await client.publish(field_topic, payload, retain=True)
+
+    def _get_structure_values(self, serial: str) -> dict[str, Any] | None:
+        """Get structure bucket values for a device.
+
+        Searches all objects for this serial to find a structure bucket.
+
+        Args:
+            serial: Device serial
+
+        Returns:
+            Structure bucket values dict, or None if not found
+        """
+        for obj in self._state_service.get_objects_by_serial(serial):
+            if obj.object_key.startswith("structure."):
+                return obj.value
+        return None
 
     async def _publish_ha_state(
         self,
@@ -586,8 +579,9 @@ class MqttIntegration(BaseIntegration):
             retain=True,
         )
 
-        # Preset mode
-        preset = get_preset_mode(device_values, shared_values)
+        # Preset mode (requires structure bucket for authoritative away state)
+        structure_values = self._get_structure_values(serial)
+        preset = get_preset_mode(device_values, shared_values, structure_values)
         await client.publish(
             f"{prefix}/{serial}/ha/preset",
             preset,
@@ -705,8 +699,8 @@ class MqttIntegration(BaseIntegration):
                 retain=True,
             )
 
-        # Compressor lockout timeout (from shared values)
-        compressor_lockout = shared_values.get("compressor_lockout_timeout")
+        # Compressor lockout timeout (from device bucket, not shared)
+        compressor_lockout = device_values.get("compressor_lockout_timeout")
         if compressor_lockout is not None:
             await client.publish(
                 f"{prefix}/{serial}/ha/compressor_lockout_timeout",

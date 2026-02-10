@@ -55,6 +55,7 @@ class SubscriptionManager:
         """Initialize the subscription manager."""
         self._long_poll_subscriptions: dict[str, dict[str, LongPollSubscription]] = {}
         self._last_subscription_end: dict[str, float] = {}  # serial -> timestamp
+        self._pending_pushes: dict[str, list[dict[str, Any]]] = {}
         self._lock = asyncio.Lock()
 
     # ========== Long-Poll Subscription Methods ==========
@@ -96,6 +97,15 @@ class SubscriptionManager:
                 self._long_poll_subscriptions[serial] = {}
             self._long_poll_subscriptions[serial][subscription.id] = subscription
 
+            # Replay any pending pushes that failed delivery on the previous connection
+            pending = self._pending_pushes.pop(serial, None)
+            if pending:
+                subscription.notify_queue.put_nowait(pending)
+                logger.info(
+                    f"Replayed {len(pending)} pending object(s) to new subscription "
+                    f"{subscription.id} for {serial}"
+                )
+
             logger.debug(
                 f"Added subscription {subscription.id} for {serial} "
                 f"(session={session_id}, total={len(self._long_poll_subscriptions[serial])})"
@@ -114,12 +124,25 @@ class SubscriptionManager:
             if subscription.id in device_subs:
                 del device_subs[subscription.id]
                 self._last_subscription_end[subscription.serial] = time.monotonic()
-                logger.debug(
-                    f"Removed subscription {subscription.id} for {subscription.serial}"
-                )
+                logger.debug(f"Removed subscription {subscription.id} for {subscription.serial}")
 
             if not device_subs and subscription.serial in self._long_poll_subscriptions:
                 del self._long_poll_subscriptions[subscription.serial]
+
+    async def store_pending_push(self, serial: str, objects: list[dict[str, Any]]) -> None:
+        """Buffer objects that failed delivery due to a broken connection.
+
+        The next call to add_long_poll_subscription for this serial will
+        replay these objects to the new subscription's queue.
+        """
+        async with self._lock:
+            existing = self._pending_pushes.get(serial, [])
+            existing.extend(objects)
+            self._pending_pushes[serial] = existing
+            logger.info(
+                f"Buffered {len(objects)} pending object(s) for {serial} "
+                f"(total pending: {len(existing)})"
+            )
 
     async def notify_long_poll_subscribers(
         self,

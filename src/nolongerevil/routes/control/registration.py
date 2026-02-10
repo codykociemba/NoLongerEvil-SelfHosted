@@ -5,13 +5,17 @@ direct database access, centralizing all DB operations in the Python backend.
 """
 
 import re
+import time
 from datetime import datetime
 
 from aiohttp import web
 
 from nolongerevil.lib.logger import get_logger
-from nolongerevil.lib.types import DeviceOwner, IntegrationConfig, UserInfo
+from nolongerevil.lib.types import DeviceObject, DeviceOwner, IntegrationConfig, UserInfo
+from nolongerevil.services.device_state_service import DeviceStateService
 from nolongerevil.services.sqlmodel_service import SQLModelService
+from nolongerevil.services.subscription_manager import SubscriptionManager
+from nolongerevil.utils.structure_assignment import derive_structure_id
 
 logger = get_logger(__name__)
 
@@ -104,6 +108,79 @@ async def handle_register(request: web.Request) -> web.Response:
         )
         await storage.set_device_owner(owner)
         logger.info(f"Registered device {serial} to user {user_id}")
+
+    # Push user bucket + structure bucket to complete pairing on the device.
+    # The user bucket's "name" field is what triggers pairing completion.
+    # The structure bucket alone is not sufficient — the device requires
+    # the user bucket to be present first.
+    state_service: DeviceStateService | None = request.app.get("state_service")
+    subscription_manager: SubscriptionManager | None = request.app.get("subscription_manager")
+
+    if state_service and subscription_manager:
+        now_ts = int(time.time() * 1000)
+        objects_to_push: list[DeviceObject] = []
+
+        # User bucket — triggers pairing completion
+        user_key = f"user.{user_id}"
+        existing_user = state_service.get_object(serial, user_key)
+        if existing_user:
+            user_rev = existing_user.object_revision + 1
+            user_value = {**existing_user.value, "name": user_id}
+        else:
+            user_rev = 1
+            user_value = {"name": user_id}
+
+        user_obj = DeviceObject(
+            serial=serial,
+            object_key=user_key,
+            object_revision=user_rev,
+            object_timestamp=now_ts,
+            value=user_value,
+            updated_at=datetime.now(),
+        )
+        await state_service.upsert_object(user_obj)
+        objects_to_push.append(user_obj)
+        logger.info(f"Created/updated user bucket {user_key} for {serial}")
+
+        # Structure bucket — establishes device-home association
+        structure_id = derive_structure_id(user_id)
+        structure_key = f"structure.{structure_id}"
+        existing_structure = state_service.get_object(serial, structure_key)
+        if existing_structure:
+            new_rev = existing_structure.object_revision + 1
+            structure_value = {
+                **existing_structure.value,
+                "devices": list(set(existing_structure.value.get("devices", []) + [serial])),
+            }
+        else:
+            new_rev = 1
+            structure_value = {
+                "name": "Home",
+                "devices": [serial],
+            }
+
+        structure_obj = DeviceObject(
+            serial=serial,
+            object_key=structure_key,
+            object_revision=new_rev,
+            object_timestamp=now_ts,
+            value=structure_value,
+            updated_at=datetime.now(),
+        )
+        await state_service.upsert_object(structure_obj)
+        objects_to_push.append(structure_obj)
+        logger.info(f"Created/updated structure bucket {structure_key} for {serial}")
+
+        # Push both to any held subscribe connections
+        notified = await subscription_manager.notify_all_subscribers(serial, objects_to_push)
+        if notified:
+            logger.info(f"Pushed user + structure buckets to {notified} subscriber(s) for {serial}")
+        else:
+            logger.info(
+                f"No active subscribers for {serial} - buckets will be included on next subscribe"
+            )
+    else:
+        logger.warning("state_service or subscription_manager not available for pairing completion")
 
     return web.json_response(
         {
@@ -317,14 +394,22 @@ async def handle_mqtt_config(request: web.Request) -> web.Response:
 def create_registration_routes(
     app: web.Application,
     storage: SQLModelService,
+    state_service: DeviceStateService | None = None,
+    subscription_manager: SubscriptionManager | None = None,
 ) -> None:
     """Register registration routes.
 
     Args:
         app: aiohttp application
         storage: SQLModel storage service
+        state_service: Device state service (for dismissing pairing dialog)
+        subscription_manager: Subscription manager (for notifying device)
     """
     app["storage"] = storage
+    if state_service:
+        app["state_service"] = state_service
+    if subscription_manager:
+        app["subscription_manager"] = subscription_manager
 
     app.router.add_post("/api/register", handle_register)
     app.router.add_get("/api/registered-devices", handle_registered_devices)

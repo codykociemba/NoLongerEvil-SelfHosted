@@ -1,10 +1,14 @@
 """Nest passphrase endpoint - entry key generation for device pairing."""
 
+import time
+from datetime import UTC, datetime
+
 from aiohttp import web
 
 from nolongerevil.config import settings
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.serial_parser import extract_serial_from_request
+from nolongerevil.lib.types import DeviceObject
 from nolongerevil.services.device_state_service import DeviceStateService
 
 logger = get_logger(__name__)
@@ -76,11 +80,13 @@ async def handle_passphrase_status(request: web.Request) -> web.Response:
 async def handle_passphrase(request: web.Request) -> web.Response:
     """Handle entry key generation request.
 
-    Generates a unique pairing code for the requesting device.
-    Uses deviceStateManager.generateEntryKey() to match TypeScript behavior.
+    Returns the existing unexpired entry key if one exists, otherwise generates
+    a new one. The device polls this endpoint repeatedly until pairing completes,
+    so we must return the same key to avoid invalidating it before the user can
+    enter it.
 
     Returns:
-        JSON response with entry key
+        JSON response with entry key (expires must be a NUMBER, not string)
     """
     # Extract device serial
     serial = extract_serial_from_request(request)
@@ -94,7 +100,19 @@ async def handle_passphrase(request: web.Request) -> web.Response:
     state_service: DeviceStateService = request.app["state_service"]
     ttl = settings.entry_key_ttl_seconds
 
-    # Use generateEntryKey to handle code generation, expiration, and storage
+    # Check for existing unexpired unclaimed key first
+    existing_key = await state_service.storage.get_latest_entry_key_by_serial(serial)
+    if existing_key and not existing_key.claimed_by and existing_key.expires_at > datetime.now(UTC):
+        expires_ms = int(existing_key.expires_at.timestamp() * 1000)
+        logger.debug(f"Returning existing entry key for {serial}: {existing_key.code}")
+        return web.json_response(
+            {
+                "value": existing_key.code,
+                "expires": expires_ms,  # Must be NUMBER, not string
+            }
+        )
+
+    # No valid key exists, generate new one
     entry_key = await state_service.storage.generate_entry_key(serial, ttl)
 
     if not entry_key:
@@ -108,11 +126,6 @@ async def handle_passphrase(request: web.Request) -> web.Response:
 
     # Create the pairing alert dialog for the device
     # The device will subscribe to this and wait for it to be dismissed
-    import time
-    from datetime import datetime
-
-    from nolongerevil.lib.types import DeviceObject
-
     alert_dialog_key = f"device_alert_dialog.{serial}"
     existing_dialog = state_service.get_object(serial, alert_dialog_key)
 
@@ -133,7 +146,7 @@ async def handle_passphrase(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "value": entry_key.get("code"),
-            "expires": entry_key.get("expiresAt"),
+            "expires": entry_key.get("expiresAt"),  # Must be NUMBER, not string
         }
     )
 

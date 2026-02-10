@@ -71,6 +71,9 @@ async def url_normalizer_middleware(
         if isinstance(match_info, web.UrlMappingMatchInfo):
             # Update the request's match_info and call the new handler
             request = request.clone(rel_url=new_url)
+            # Set up the app context chain so request.app works in handlers
+            match_info.add_app(request.app)
+            match_info.freeze()
             request._match_info = match_info
             return await match_info.handler(request)
         else:

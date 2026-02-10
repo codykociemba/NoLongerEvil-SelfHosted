@@ -23,6 +23,11 @@ services:
       # TLS configuration (uncomment if using certificates)
       # - CERT_DIR=/app/certs
 
+      # Device pairing requirement (default: false)
+      # When true, devices must complete entry key pairing before transport access.
+      # When false, any device can PUT and subscribe without registration.
+      - REQUIRE_DEVICE_PAIRING=false
+
       # Entry key configuration
       - ENTRY_KEY_TTL_SECONDS=3600
 

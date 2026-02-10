@@ -3,329 +3,1372 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NoLongerEvil - Device Management</title>
+  <title>NoLongerEvil</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7/css/materialdesignicons.min.css">
   <style>
     :root {
-      --bg-color: #f5f5f5;
-      --card-bg: white;
-      --text-color: #333;
-      --text-muted: #666;
-      --border-color: #ddd;
-      --border-light: #eee;
-      --shadow: rgba(0,0,0,0.1);
+      --bg: #f0f2f5;
+      --card: #fff;
+      --text: #1a1a1a;
+      --text2: #6b7280;
+      --text3: #9ca3af;
+      --border: #e5e7eb;
+      --hover: #f9fafb;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-lg: 0 4px 12px rgba(0,0,0,0.08);
+      --radius: 14px;
+      --accent: #10b981;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg-color: #1a1a1a;
-        --card-bg: #2d2d2d;
-        --text-color: #e0e0e0;
-        --text-muted: #999;
-        --border-color: #444;
-        --border-light: #3a3a3a;
-        --shadow: rgba(0,0,0,0.3);
+        --bg: #111827;
+        --card: #1f2937;
+        --text: #f3f4f6;
+        --text2: #9ca3af;
+        --text3: #6b7280;
+        --border: #374151;
+        --hover: #283040;
+        --shadow: 0 1px 3px rgba(0,0,0,0.2);
+        --shadow-lg: 0 4px 12px rgba(0,0,0,0.3);
       }
     }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      max-width: 800px;
-      margin: 40px auto;
-      padding: 0 20px;
-      background: var(--bg-color);
-      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px 16px;
+      -webkit-font-smoothing: antialiased;
     }
-    h1, h2 { color: var(--text-color); }
-    .card {
-      background: var(--card-bg);
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px var(--shadow);
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 20px;
     }
+    .header h1 { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .btn-icon {
+      background: none; border: none; cursor: pointer;
+      color: var(--text3); padding: 6px; border-radius: 8px;
+      font-size: 18px; display: inline-flex; align-items: center;
+      transition: all 0.15s;
+    }
+    .btn-icon:hover { background: var(--border); color: var(--text); }
+
+    /* Setup */
+    .setup-toggle {
+      background: none; border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 10px 16px; width: 100%; text-align: left; cursor: pointer;
+      color: var(--text2); font-size: 14px;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px; transition: background 0.15s;
+    }
+    .setup-toggle:hover { background: var(--card); }
+    .setup-toggle .mdi { transition: transform 0.2s; }
+    .setup-toggle.open .mdi { transform: rotate(90deg); }
+    .setup-content { display: none; margin-bottom: 12px; }
+    .setup-content.open { display: block; }
+    .setup-card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 20px;
+    }
+    .setup-card h2 {
+      font-size: 13px; font-weight: 600; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;
+    }
+    .setup-card ol { margin: 0 0 12px 20px; color: var(--text2); font-size: 14px; line-height: 1.7; }
     .form-input {
-      padding: 10px;
-      font-size: 16px;
-      width: 150px;
-      text-transform: uppercase;
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      background: var(--card-bg);
-      color: var(--text-color);
+      padding: 8px 12px; font-size: 16px; width: 160px;
+      text-transform: uppercase; letter-spacing: 1px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg); color: var(--text); outline: none;
     }
-    .btn {
-      padding: 10px 20px;
-      font-size: 14px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-left: 10px;
+    .form-input:focus { border-color: var(--accent); }
+    .btn-primary {
+      padding: 8px 16px; font-size: 14px; font-weight: 500;
+      border: none; border-radius: 8px; cursor: pointer;
+      background: var(--accent); color: white;
     }
-    .btn-primary { background: #4CAF50; color: white; }
-    .btn-danger { background: #dc3545; color: white; }
-    .btn:hover { opacity: 0.9; }
-    .device-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border-light);
-      gap: 12px;
+    .btn-primary:hover { opacity: 0.85; }
+    .msg-success { color: var(--accent); font-size: 14px; margin-top: 6px; }
+    .msg-error { color: #dc2626; font-size: 14px; margin-top: 6px; }
+
+    /* Device list */
+    .devices { display: flex; flex-direction: column; gap: 10px; }
+
+    /* Device card */
+    .device-card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 12px 16px;
     }
-    .device-item:last-child { border-bottom: none; }
-    .device-info { flex: 1; }
-    .device-status {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      font-size: 14px;
+
+    /* Row 1: identity + meta */
+    .card-row-top {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 10px;
     }
-    .device-temp {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-width: 60px;
+    .card-identity { display: flex; align-items: center; gap: 10px; }
+    .online-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      margin-top: 7px; align-self: flex-start;
+      transition: background 0.3s;
     }
-    .device-temp-current {
-      font-size: 24px;
-      font-weight: bold;
+    .online-dot.on { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
+    .online-dot.off { background: #9ca3af; }
+    .card-identity h3 { font-size: 17px; font-weight: 650; letter-spacing: -0.2px; }
+    .card-serial {
+      font-family: 'SF Mono', SFMono-Regular, Menlo, monospace;
+      font-size: 10px; color: var(--text3); letter-spacing: 0.3px;
+      margin-top: 1px;
     }
-    .device-temp-target {
-      font-size: 12px;
-      color: var(--text-muted);
+    .card-last-seen { font-size: 11px; color: var(--text3); font-style: italic; margin-top: 2px; }
+    .card-meta {
+      display: flex; align-items: center; gap: 8px;
+      color: var(--text3); font-size: 13px; flex-shrink: 0;
+      padding-top: 2px;
     }
-    .device-mode {
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      text-transform: uppercase;
-      font-weight: bold;
+    .card-meta .mdi { font-size: 15px; }
+    /* HVAC card glow effects — option D: colored border + soft outer */
+    .device-card { position: relative; overflow: hidden; transition: all 0.6s ease; border: 1.5px solid transparent; }
+    .device-card.glow-heat {
+      border-color: rgba(249, 115, 22, 0.45);
+      box-shadow: 0 0 16px -2px rgba(249, 115, 22, 0.2), var(--shadow);
     }
-    .mode-heat { background: #ff5722; color: white; }
-    .mode-cool { background: #2196f3; color: white; }
-    .mode-range { background: #9c27b0; color: white; }
-    .mode-off { background: var(--border-color); color: var(--text-muted); }
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      display: inline-block;
+    .device-card.glow-cool {
+      border-color: rgba(59, 130, 246, 0.45);
+      box-shadow: 0 0 16px -2px rgba(59, 130, 246, 0.2), var(--shadow);
     }
-    .status-online { background: #4CAF50; }
-    .status-offline { background: #9e9e9e; }
-    .text-muted { color: var(--text-muted); }
-    .monospace { font-family: monospace; font-size: 12px; }
-    #registerResult { margin-top: 15px; }
-    #deviceList { margin-top: 15px; }
-    .success { color: #4CAF50; }
-    .error { color: #dc3545; }
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .device-card.glow-heat.glow-cool {
+      border-color: rgba(168, 85, 247, 0.45);
+      box-shadow: 0 0 16px -2px rgba(168, 85, 247, 0.2), var(--shadow);
     }
-    .card-header h2 { margin: 0; }
-    .card-header .btn { margin: 0; }
+    @media (prefers-color-scheme: dark) {
+      .device-card.glow-heat {
+        border-color: rgba(251, 146, 60, 0.5);
+        box-shadow: 0 0 16px -2px rgba(251, 146, 60, 0.25), var(--shadow);
+      }
+      .device-card.glow-cool {
+        border-color: rgba(96, 165, 250, 0.5);
+        box-shadow: 0 0 16px -2px rgba(96, 165, 250, 0.25), var(--shadow);
+      }
+      .device-card.glow-heat.glow-cool {
+        border-color: rgba(168, 85, 247, 0.5);
+        box-shadow: 0 0 16px -2px rgba(168, 85, 247, 0.25), var(--shadow);
+      }
+    }
+
+    /* HVAC status row */
+    .hvac-status {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 8px 0 4px; margin-top: 2px;
+    }
+    .hvac-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+    }
+    .hvac-pill .mdi { font-size: 14px; }
+    .hvac-pill.pill-heat {
+      background: rgba(251, 146, 60, 0.12); color: #ea580c;
+    }
+    .hvac-pill.pill-cool {
+      background: rgba(96, 165, 250, 0.12); color: #2563eb;
+    }
+    .hvac-pill.pill-fan {
+      background: rgba(34, 197, 94, 0.10); color: #16a34a;
+    }
+    .hvac-pill.pill-humid {
+      background: rgba(14, 165, 233, 0.10); color: #0284c7;
+    }
+    .hvac-pill.pill-emer {
+      background: rgba(239, 68, 68, 0.12); color: #dc2626;
+    }
+    @media (prefers-color-scheme: dark) {
+      .hvac-pill.pill-heat { background: rgba(251, 146, 60, 0.18); color: #fb923c; }
+      .hvac-pill.pill-cool { background: rgba(96, 165, 250, 0.18); color: #93c5fd; }
+      .hvac-pill.pill-fan { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+      .hvac-pill.pill-humid { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+      .hvac-pill.pill-emer { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+    }
+    @keyframes fan-spin { to { transform: rotate(360deg); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .fan-spin { animation: fan-spin 1.2s linear infinite; display: inline-block; }
+
+    /* Humidity gauge */
+    .humid-gauge {
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .humid-bar-track {
+      width: 40px; height: 5px; border-radius: 3px;
+      background: rgba(14, 165, 233, 0.15); overflow: hidden;
+    }
+    .humid-bar-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, #38bdf8, #0284c7);
+      transition: width 0.4s ease;
+    }
+    .humid-label {
+      font-size: 10px; font-weight: 600; opacity: 0.8;
+    }
+    .btn-delete {
+      background: none; border: none; cursor: pointer;
+      color: var(--text3); padding: 4px; border-radius: 6px;
+      font-size: 16px; opacity: 0.3; transition: all 0.15s;
+    }
+    .btn-delete:hover { opacity: 1; color: #dc2626; }
+
+    /* Row 2: current temp + target controls */
+    .card-row-climate {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 8px;
+    }
+    .climate-current {
+      display: flex; align-items: baseline; gap: 5px;
+    }
+    .temp-big {
+      font-size: 48px; font-weight: 700; letter-spacing: -2.5px; line-height: 1;
+    }
+    .temp-unit {
+      font-size: 16px; font-weight: 500; color: var(--text3);
+    }
+
+    /* Target single */
+    .target-single {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .target-info { text-align: center; }
+    .target-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+    .target-value { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.5px; }
+    .temp-btn {
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 1.5px solid var(--border); background: var(--card);
+      color: var(--text); font-size: 20px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; user-select: none; -webkit-user-select: none;
+    }
+    .temp-btn:hover { background: var(--hover); border-color: var(--text3); }
+    .temp-btn:active { transform: scale(0.92); }
+
+    /* Target range */
+    .target-range {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .range-group { display: flex; align-items: center; gap: 4px; }
+    .range-label { font-size: 10px; color: var(--text3); text-transform: uppercase; font-weight: 600; letter-spacing: 0.4px; }
+    .range-value { font-size: 18px; font-weight: 700; min-width: 40px; text-align: center; letter-spacing: -0.3px; }
+    .range-btn {
+      width: 30px; height: 30px; border-radius: 50%;
+      border: 1.5px solid var(--border); background: var(--card);
+      color: var(--text); font-size: 15px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; user-select: none; -webkit-user-select: none;
+    }
+    .range-btn:hover { background: var(--hover); border-color: var(--text3); }
+    .range-btn:active { transform: scale(0.92); }
+    .range-sep { color: var(--text3); font-size: 14px; margin: 0 1px; }
+
+    /* Row 3: mode + eco + fan (single row) */
+    .card-row-controls {
+      display: flex; align-items: center;
+      flex-wrap: wrap; gap: 6px;
+      border-top: 1px solid var(--border);
+      margin-top: 6px; padding-top: 10px;
+    }
+    .controls-spacer { flex: 1; min-width: 4px; }
+    .mode-seg {
+      display: inline-flex; background: var(--bg);
+      border-radius: 10px; padding: 3px; gap: 2px;
+    }
+    .mode-btn {
+      padding: 6px 11px; font-size: 11px; font-weight: 650;
+      text-transform: uppercase; letter-spacing: 0.3px;
+      border: none; border-radius: 7px; cursor: pointer;
+      background: transparent; color: var(--text3); transition: all 0.15s;
+    }
+    .mode-btn:hover { color: var(--text); }
+    .mode-btn.active {
+      background: var(--card); color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .mode-btn.active.m-heat { color: #dc2626; }
+    .mode-btn.active.m-cool { color: #2563eb; }
+    .mode-btn.active.m-auto { color: #7c3aed; }
+    .mode-btn.active.m-emer { color: #dc2626; }
+
+    .eco-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 10px; font-size: 11px; font-weight: 650;
+      text-transform: uppercase; letter-spacing: 0.3px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      cursor: pointer; background: transparent; color: var(--text3);
+      transition: all 0.15s;
+    }
+    .eco-btn .mdi { font-size: 14px; }
+    .eco-btn:hover { border-color: var(--text3); color: var(--text2); }
+    .eco-btn.active { background: #d1fae5; color: #059669; border-color: #a7f3d0; }
+    .eco-btn.auto-eco { color: #b45309; border-color: rgba(180, 83, 9, 0.3); }
+    @media (prefers-color-scheme: dark) {
+      .eco-btn.active { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
+      .eco-btn.auto-eco { color: #d97706; border-color: rgba(217, 119, 6, 0.25); }
+    }
+    /* Eco mode target display */
+    .eco-target { text-align: center; padding: 2px 0; }
+    .eco-target-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: #b45309;
+    }
+    .eco-target-value {
+      font-size: 24px; font-weight: 700; color: #b45309;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+    }
+    .eco-schedule-hint { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .eco-range-display {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+    }
+    .eco-range-group { text-align: center; }
+    .eco-range-sep { color: var(--text3); font-size: 18px; }
+    .temp-btn.disabled, .range-btn.disabled {
+      opacity: 0.25; pointer-events: none; cursor: default;
+    }
+    @media (prefers-color-scheme: dark) {
+      .eco-target-label, .eco-target-value { color: #d97706; }
+    }
+    .fan-seg {
+      display: inline-flex; background: var(--bg);
+      border-radius: 10px; padding: 3px; gap: 2px;
+    }
+    .fan-btn {
+      padding: 5px 9px; font-size: 11px; font-weight: 650;
+      text-transform: uppercase; letter-spacing: 0.3px;
+      border: none; border-radius: 7px; cursor: pointer;
+      background: transparent; color: var(--text3); transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .fan-btn .mdi { font-size: 13px; }
+    .fan-btn:hover { color: var(--text); }
+    .fan-btn.active {
+      background: var(--card); color: #16a34a;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .fan-timer {
+      font-size: 9px; font-weight: 600; color: var(--text3);
+      margin-left: 2px; letter-spacing: 0.2px;
+    }
+    /* .fan-row removed — fan merged into card-row-controls */
+    .ttt-label {
+      font-size: 11px; color: var(--text2); text-align: center;
+      margin-top: 1px; font-weight: 600; letter-spacing: 0.2px;
+    }
+    .climate-current { position: relative; }
+    .leaf-badge {
+      color: #16a34a; font-size: 18px;
+      display: inline-flex; margin-left: 2px;
+      vertical-align: baseline;
+    }
+    .safety-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+      background: rgba(239, 68, 68, 0.12); color: #dc2626;
+    }
+    .safety-pill .mdi { font-size: 13px; }
+    @media (prefers-color-scheme: dark) {
+      .safety-pill { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+    }
+
+    .empty-state {
+      text-align: center; padding: 48px 20px; color: var(--text3);
+    }
+    .empty-state .mdi { font-size: 48px; display: block; margin-bottom: 12px; opacity: 0.3; }
+
+    /* Schedule section */
+    .sched-toggle {
+      display: flex; align-items: center; gap: 6px;
+      background: none; border: none; cursor: pointer;
+      color: var(--text3); font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.3px;
+      padding: 8px 0 0; transition: color 0.15s;
+    }
+    .sched-toggle:hover { color: var(--text2); }
+    .sched-toggle .mdi { font-size: 14px; transition: transform 0.2s; }
+    .sched-toggle.open .mdi { transform: rotate(90deg); }
+    .sched-section { display: none; padding-top: 12px; }
+    .sched-section.open { display: block; }
+    .sched-grid { margin-bottom: 4px; }
+    .sched-row {
+      display: flex; align-items: center; height: 48px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sched-row:last-child { border-bottom: none; }
+    .sched-day-label {
+      width: 40px; flex-shrink: 0;
+      font-size: 11px; font-weight: 600; color: var(--text2);
+    }
+    .sched-timeline {
+      flex: 1; position: relative; height: 100%;
+    }
+    .sched-row-add {
+      flex-shrink: 0; width: 22px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sched-row-add button {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 1px dashed var(--border); background: none;
+      color: var(--text3); font-size: 14px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; line-height: 1;
+    }
+    .sched-row-add button:hover { border-color: var(--text3); color: var(--text2); }
+    .sched-gridline {
+      position: absolute; top: 0; bottom: 0; width: 1px;
+      background: var(--border); opacity: 0.5;
+    }
+    .sched-circle {
+      position: absolute; width: 34px; height: 34px; border-radius: 50%;
+      color: white; font-weight: 700; font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      top: 50%; transform: translate(-50%, -50%);
+      cursor: grab; user-select: none; -webkit-user-select: none;
+      z-index: 2; transition: box-shadow 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .sched-circle:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 3; }
+    .sched-circle:active { cursor: grabbing; }
+    .sched-circle.heat { background: #f59e0b; }
+    .sched-circle.cool { background: #3b82f6; }
+    .sched-circle.range {
+      background: #7c3aed;
+      flex-direction: column; line-height: 1;
+      font-size: 10px; gap: 1px;
+    }
+    .sched-circle .circle-del {
+      position: absolute; top: -6px; right: -6px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #dc2626; color: white; font-size: 11px; line-height: 16px;
+      text-align: center; cursor: pointer;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .sched-circle:hover .circle-del { opacity: 1; }
+    .sched-drag-label {
+      position: absolute; bottom: calc(100% + 4px); left: 50%;
+      transform: translateX(-50%);
+      background: var(--text); color: var(--bg);
+      font-size: 11px; font-weight: 600;
+      padding: 2px 6px; border-radius: 4px;
+      white-space: nowrap; pointer-events: none;
+      z-index: 10;
+    }
+    .sched-axis {
+      display: flex; margin-left: 40px; padding-top: 2px;
+    }
+    .sched-axis-label {
+      font-size: 9px; color: var(--text3); text-align: center;
+    }
+    .sched-save-row {
+      display: flex; align-items: center; gap: 8px; padding-top: 10px;
+    }
+    .sched-save-msg { font-size: 12px; }
+
+    /* Inline temp popover */
+    .sched-popover {
+      position: absolute; bottom: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%);
+      background: var(--card); border-radius: 10px;
+      box-shadow: var(--shadow-lg); border: 1px solid var(--border);
+      padding: 6px 4px; z-index: 20;
+      display: flex; align-items: center; gap: 2px;
+      white-space: nowrap;
+    }
+    .sched-popover::after {
+      content: ''; position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent; border-top-color: var(--card);
+    }
+    .sched-pop-group {
+      display: flex; align-items: center; gap: 2px;
+    }
+    .sched-pop-btn {
+      width: 24px; height: 24px; border-radius: 50%;
+      border: 1px solid var(--border); background: var(--card);
+      color: var(--text); font-size: 14px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.1s; user-select: none; -webkit-user-select: none;
+      line-height: 1;
+    }
+    .sched-pop-btn:hover { background: var(--hover); border-color: var(--text3); }
+    .sched-pop-btn:active { transform: scale(0.9); }
+    .sched-pop-val {
+      min-width: 36px; text-align: center;
+      font-size: 14px; font-weight: 700; color: var(--text);
+      padding: 2px 2px;
+      border: none; background: transparent; outline: none;
+      font-family: inherit;
+    }
+    .sched-pop-val:focus { background: var(--bg); border-radius: 4px; }
+    .sched-pop-unit { font-size: 10px; color: var(--text3); margin-right: 2px; }
+    .sched-pop-sep { color: var(--text3); font-size: 10px; margin: 0 2px; }
   </style>
 </head>
 <body>
-  <h1>🌡️ NoLongerEvil Device Management</h1>
-
-  <div class="card">
-    <h2>Quick Start</h2>
-    <ol>
-      <li>On your Nest thermostat, go to Settings and select "Nest App"</li>
-      <li>The thermostat will display a 7-character pairing code</li>
-      <li>Enter the code below to register the device</li>
-    </ol>
+  <div class="header">
+    <h1><i class="mdi mdi-thermostat"></i> NoLongerEvil</h1>
+    <div style="display:flex;gap:4px">
+      <button onclick="loadDevices()" class="btn-icon" title="Refresh"><i class="mdi mdi-refresh"></i></button>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Register Device</h2>
-    <p>Enter the 7-character pairing code from your Nest thermostat:</p>
-    <form id="registerForm">
-      <input
-        type="text"
-        id="entryCode"
-        placeholder="123-ABCD"
-        maxlength="8"
-        class="form-input"
-        required
-      />
-      <button type="submit" class="btn btn-primary">Register Device</button>
-    </form>
-    <div id="registerResult"></div>
+  <button class="setup-toggle" onclick="toggleSetup()" id="setupToggle">
+    <i class="mdi mdi-chevron-right"></i> Add a new device
+  </button>
+  <div class="setup-content" id="setupContent">
+    <div class="setup-card">
+      <h2>Setup</h2>
+      <ol>
+        <li>On your Nest thermostat, go to <strong>Settings → Nest App</strong></li>
+        <li>Enter the 7-character code shown on screen</li>
+      </ol>
+      <form id="registerForm" style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="entryCode" placeholder="ABC-1234" maxlength="8" class="form-input" required />
+        <button type="submit" class="btn-primary">Register</button>
+      </form>
+      <div id="registerResult"></div>
+    </div>
   </div>
 
-  <div class="card">
-    <div class="card-header">
-      <h2>Devices</h2>
-      <button onclick="loadDevices()" class="btn btn-primary">
-        <i class="mdi mdi-refresh"></i> Refresh
-      </button>
-    </div>
-    <div id="deviceList">
-      <p><em>Loading devices...</em></p>
-    </div>
+  <div id="deviceList">
+    <div class="empty-state"><i class="mdi mdi-loading mdi-spin"></i>Loading...</div>
   </div>
 
   <script>
-    // Get base path from data attribute (injected by server for ingress support)
     const BASE_PATH = document.body.dataset.ingressPath || '';
-
-    // Load devices on page load
+    const pendingTargets = {};
     loadDevices();
+    // Fallback poll in case SSE disconnects
+    setInterval(loadDevices, 30000);
 
-    // Auto-format entry code with dash (XXX-XXXX)
+    // SSE: server pushes events when device state changes
+    let _ssePending = false;
+    function connectSSE() {
+      const es = new EventSource(BASE_PATH + '/api/events');
+      es.onmessage = function() {
+        // If user has active interaction, defer
+        if (activePopover) { _ssePending = true; return; }
+        for (const k in scheduleCache) { if (scheduleCache[k].dirty) { _ssePending = true; return; } }
+        loadDevices();
+      };
+      es.onerror = function() { es.close(); setTimeout(connectSSE, 5000); };
+    }
+    connectSSE();
+
+    function toggleSetup() {
+      document.getElementById('setupToggle').classList.toggle('open');
+      document.getElementById('setupContent').classList.toggle('open');
+    }
+
     const entryCodeInput = document.getElementById('entryCode');
     entryCodeInput.addEventListener('input', (e) => {
       const input = e.target;
       const isDeleting = e.inputType && e.inputType.startsWith('delete');
-      let value = input.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      // Only add dash if we have more than 3 chars, or exactly 3 and not deleting
-      if (value.length > 3 || (value.length === 3 && !isDeleting)) {
-        value = value.slice(0, 3) + '-' + value.slice(3, 7);
-      }
-      input.value = value;
-      // Auto-position cursor after dash when it's inserted
-      if (value.length === 4 && !isDeleting) {
-        input.setSelectionRange(4, 4);
-      }
+      let v = input.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      if (v.length > 3 || (v.length === 3 && !isDeleting)) v = v.slice(0, 3) + '-' + v.slice(3, 7);
+      input.value = v;
+      if (v.length === 4 && !isDeleting) input.setSelectionRange(4, 4);
     });
 
-    // Handle registration form
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const code = document.getElementById('entryCode').value.replace(/-/g, '').toUpperCase().trim();
-      const resultDiv = document.getElementById('registerResult');
-
-      if (code.length !== 7) {
-        resultDiv.innerHTML = '<p class="error">Entry code must be 7 characters</p>';
-        return;
-      }
-
-      resultDiv.innerHTML = '<p>Registering device...</p>';
-
+      const res = document.getElementById('registerResult');
+      if (code.length !== 7) { res.innerHTML = '<p class="msg-error">Code must be 7 characters</p>'; return; }
+      res.innerHTML = '<p style="color:var(--text2);font-size:14px;margin-top:6px">Registering...</p>';
       try {
-        const response = await fetch(BASE_PATH + '/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: code, userId: 'homeassistant' })
+        const r = await fetch(BASE_PATH + '/api/register', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({code, userId: 'homeassistant'})
         });
-
-        const result = await response.json();
-
-        if (result.success) {
-          resultDiv.innerHTML = '<p class="success">' + result.message + '</p>';
+        const j = await r.json();
+        if (j.success) {
+          res.innerHTML = '<p class="msg-success">' + esc(j.message) + '</p>';
           document.getElementById('entryCode').value = '';
           setTimeout(loadDevices, 1000);
-        } else {
-          resultDiv.innerHTML = '<p class="error">' + result.message + '</p>';
-        }
-      } catch (error) {
-        resultDiv.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
-      }
+        } else res.innerHTML = '<p class="msg-error">' + esc(j.message) + '</p>';
+      } catch (err) { res.innerHTML = '<p class="msg-error">Error: ' + esc(err.message) + '</p>'; }
     });
 
-    function celsiusToFahrenheit(celsius) {
-      return (celsius * 9 / 5) + 32;
+    function c2f(c) { return (c * 9 / 5) + 32; }
+    function f2c(f) { return (f - 32) * 5 / 9; }
+    function tempVal(t, s) { return t == null ? null : s === 'F' ? Math.round(c2f(t)) : Math.round(t * 2) / 2; }
+    function fmtTemp(t, s) { return t == null ? '--' : tempVal(t, s) + '\u00B0'; }
+    function stepSize(s) { return s === 'F' ? 1 : 0.5; }
+    function modeKey(m) { if (!m) return 'off'; const v = m.toLowerCase(); return (v === 'heat-cool' || v === 'range') ? 'auto' : v; }
+    function modeApi(k) { return k === 'auto' ? 'heat-cool' : k; }
+    function esc(s) { if (s == null) return ''; const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+    function relativeTime(iso) {
+      if (!iso) return '';
+      const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+      if (s < 60) return 'Last seen just now';
+      if (s < 3600) return 'Last seen ' + Math.floor(s / 60) + 'm ago';
+      if (s < 86400) return 'Last seen ' + Math.floor(s / 3600) + 'h ago';
+      return 'Last seen ' + Math.floor(s / 86400) + 'd ago';
     }
 
-    function formatTemp(temp, scale) {
-      if (temp === null || temp === undefined) return '--';
-      // Temperatures are stored in Celsius, convert if user prefers Fahrenheit
-      const displayTemp = scale === 'F' ? celsiusToFahrenheit(temp) : temp;
-      const unit = scale === 'F' ? 'F' : 'C';
-      return Math.round(displayTemp) + '°' + unit;
+    let _refreshTimers = [];
+    function scheduleRefresh() {
+      // Cancel any pending refresh timers
+      _refreshTimers.forEach(t => clearTimeout(t));
+      // Poll at 2s, 5s, 10s to catch device responses
+      _refreshTimers = [2000, 5000, 10000].map(ms => setTimeout(loadDevices, ms));
     }
 
-    function getModeClass(mode) {
-      if (!mode) return 'mode-off';
-      const m = mode.toLowerCase();
-      if (m === 'heat') return 'mode-heat';
-      if (m === 'cool') return 'mode-cool';
-      if (m === 'range') return 'mode-range';
-      return 'mode-off';
+    async function sendCommand(serial, command, value) {
+      try {
+        const r = await fetch(BASE_PATH + '/command', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({serial, command, value})
+        });
+        const j = await r.json();
+        if (!j.success) console.error('Command failed:', j.message);
+        scheduleRefresh();
+        return j;
+      } catch (err) { console.error('Command error:', err); }
     }
 
-    function getModeLabel(mode) {
-      if (!mode) return 'OFF';
-      const m = mode.toLowerCase();
-      if (m === 'range') return 'AUTO';
-      return m.toUpperCase();
-    }
-
-    function getTargetTemp(d) {
-      const scale = d.temperature_scale || 'C';
-      if (!d.mode || d.mode.toLowerCase() === 'off') return '';
-      if (d.mode.toLowerCase() === 'range') {
-        return formatTemp(d.target_temperature_low, scale) + ' - ' + formatTemp(d.target_temperature_high, scale);
+    function adjustTemp(serial, currentTarget, scale, delta, field) {
+      const step = stepSize(scale);
+      const cur = tempVal(currentTarget, scale);
+      const nv = cur + delta * step;
+      const nc = scale === 'F' ? f2c(nv) : nv;
+      if (!pendingTargets[serial]) pendingTargets[serial] = {};
+      if (field === 'target') pendingTargets[serial].target = nc;
+      else pendingTargets[serial][field] = nc;
+      renderDevices(lastDevices);
+      if (field === 'target') {
+        sendCommand(serial, 'set_temperature', nc);
+      } else {
+        const d = lastDevices.find(x => x.serial === serial);
+        const low = field === 'low' ? nc : (pendingTargets[serial]?.low ?? d.target_temperature_low);
+        const high = field === 'high' ? nc : (pendingTargets[serial]?.high ?? d.target_temperature_high);
+        sendCommand(serial, 'set_temperature', {low, high});
       }
-      return '→ ' + formatTemp(d.target_temperature, scale);
+    }
+
+    function setMode(serial, mode) {
+      sendCommand(serial, 'set_mode', mode);
+      const d = lastDevices.find(x => x.serial === serial);
+      if (d) { d.mode = mode; renderDevices(lastDevices); }
+    }
+
+    function toggleEco(serial, cur) {
+      sendCommand(serial, 'set_away', !cur);
+      const d = lastDevices.find(x => x.serial === serial);
+      if (d) { d.eco_mode = !cur ? 'manual-eco' : null; renderDevices(lastDevices); }
+    }
+
+    function setFan(serial, mode) {
+      sendCommand(serial, 'set_fan', mode);
+      const d = lastDevices.find(x => x.serial === serial);
+      if (d) {
+        if (mode === 'on') { d.fan_timer_active = true; }
+        else if (mode === 'auto') { d.fan_timer_active = false; d.fan_timer_timeout = 0; }
+        renderDevices(lastDevices);
+      }
+    }
+
+    // --- Schedule ---
+    const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const scheduleCache = {}; // serial -> {schedule, dirty, open}
+    let editOverlay = null;
+
+    function secsToTime(s) {
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+      if (use24h()) return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      return h12 + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+    }
+
+    // Device sends days as {"0": {"0": {entry}, "1": {entry}}, ...} (dict-of-dicts)
+    // UI works with arrays internally: {"0": [{entry}, {entry}], ...}
+    function normalizeDays(days) {
+      if (!days) return {};
+      const out = {};
+      for (const dk of Object.keys(days)) {
+        const d = days[dk];
+        if (Array.isArray(d)) { out[dk] = d; continue; }
+        // Dict-of-dicts: sort by key and convert to array
+        out[dk] = Object.keys(d).sort((a, b) => parseInt(a) - parseInt(b)).map(k => d[k]);
+      }
+      return out;
+    }
+    // Convert back to dict-of-dicts for the device
+    function denormalizeDays(days) {
+      const out = {};
+      for (const dk of Object.keys(days)) {
+        const arr = days[dk];
+        const d = {};
+        arr.forEach((e, i) => { d[String(i)] = e; });
+        out[dk] = d;
+      }
+      return out;
+    }
+
+    async function toggleSchedule(serial) {
+      const sc = scheduleCache[serial] || {};
+      sc.open = !sc.open;
+      scheduleCache[serial] = sc;
+      if (sc.open && !sc.schedule) {
+        sc.loading = true;
+        renderDevices(lastDevices);
+        try {
+          const r = await fetch(BASE_PATH + '/api/schedule?serial=' + serial);
+          const j = await r.json();
+          if (j.schedule) {
+            j.schedule.days = normalizeDays(j.schedule.days);
+          }
+          sc.schedule = j.schedule;
+          sc.original = JSON.parse(JSON.stringify(j.schedule));
+          sc.loading = false;
+        } catch (e) {
+          sc.loading = false;
+          sc.error = e.message;
+        }
+      }
+      renderDevices(lastDevices);
+    }
+
+    function circleTemp(entry, scale) {
+      if (entry['temp-min'] != null && entry['temp-max'] != null) {
+        const lo = scale === 'F' ? Math.round(c2f(entry['temp-min'])) : Math.round(entry['temp-min']);
+        const hi = scale === 'F' ? Math.round(c2f(entry['temp-max'])) : Math.round(entry['temp-max']);
+        return '<span style="opacity:.7">' + lo + '</span><span>' + hi + '</span>';
+      }
+      const t = entry.temp;
+      if (t == null) return '--';
+      return scale === 'F' ? Math.round(c2f(t)) : Math.round(t);
+    }
+
+    function modeColor(entry, schedMode) {
+      const t = (entry.type || schedMode || 'HEAT').toUpperCase();
+      if (t === 'COOL') return 'cool';
+      if (t === 'RANGE') return 'range';
+      return 'heat';
+    }
+
+    // Generate axis labels: 12h or 24h based on locale
+    function use24h() {
+      try { return !new Intl.DateTimeFormat(navigator.language, {hour:'numeric'}).format(0).match(/AM|PM/i); }
+      catch(e) { return false; }
+    }
+
+    function renderScheduleSection(serial, scale, schedMode) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.open) return '';
+      if (sc.loading) return '<div class="sched-section open"><span style="color:var(--text3);font-size:12px">Loading schedule...</span></div>';
+      if (sc.error) return '<div class="sched-section open"><span class="msg-error" style="font-size:12px">' + esc(sc.error) + '</span></div>';
+      if (!sc.schedule) return '<div class="sched-section open"><span style="color:var(--text3);font-size:12px">No schedule data from device yet.</span></div>';
+
+      const sched = sc.schedule;
+      const dataMode = (sched.schedule_mode || sched.mode || 'HEAT').toUpperCase();
+      const hvacMode = (schedMode || 'HEAT').toUpperCase();
+      // If the schedule data doesn't match the HVAC mode, poll for updated data
+      if (hvacMode !== 'OFF' && hvacMode !== 'EMERGENCY' && dataMode !== hvacMode) {
+        if (!sc._pollTimer) {
+          sc._pollTimer = setInterval(async () => {
+            try {
+              const r = await fetch(BASE_PATH + '/api/schedule?serial=' + serial);
+              const j = await r.json();
+              if (j.schedule) {
+                j.schedule.days = normalizeDays(j.schedule.days);
+                const newMode = (j.schedule.schedule_mode || j.schedule.mode || '').toUpperCase();
+                const curHvac = (lastDevices.find(x => x.serial === serial)?.mode || 'heat');
+                const curTarget = (curHvac === 'heat-cool' ? 'RANGE' : curHvac.toUpperCase());
+                if (newMode === curTarget) {
+                  clearInterval(sc._pollTimer);
+                  sc._pollTimer = null;
+                  sc.schedule = j.schedule;
+                  sc.original = JSON.parse(JSON.stringify(j.schedule));
+                  renderDevices(lastDevices);
+                }
+              }
+            } catch(e) { /* ignore, keep polling */ }
+          }, 5000);
+        }
+        return '<div class="sched-section open"><span style="color:var(--text3);font-size:12px">' +
+          '<i class="mdi mdi-sync" style="animation:spin 1s linear infinite"></i> ' +
+          'Waiting for device to sync ' + hvacMode.charAt(0) + hvacMode.slice(1).toLowerCase() + ' schedule...</span></div>';
+      }
+      // Schedule matches — clear any stale poll timer
+      if (sc._pollTimer) { clearInterval(sc._pollTimer); sc._pollTimer = null; }
+
+      const mode = dataMode;
+      const esc = "'" + serial + "'";
+      const is24 = use24h();
+
+      // Gridlines every 2 hours
+      let gridlines = '';
+      for (let h = 0; h <= 24; h += 2) {
+        gridlines += '<div class="sched-gridline" style="left:' + ((h/24)*100) + '%"></div>';
+      }
+
+      // Day rows
+      let daysHtml = '<div class="sched-grid">';
+      for (let di = 0; di < 7; di++) {
+        const dk = String(di);
+        const entries = (sched.days && sched.days[dk]) || [];
+        let circles = '';
+        entries.forEach((entry, ei) => {
+          if (entry.entry_type === 'continuation') return;
+          const pct = ((entry.time || 0) / 86400) * 100;
+          const temp = circleTemp(entry, scale);
+          const color = modeColor(entry, mode);
+          const isActive = activePopover && activePopover.serial === serial &&
+            activePopover.dayIdx === di && activePopover.entryIdx === ei;
+          const popHtml = isActive ? buildPopoverHtml(serial, di, ei, scale) : '';
+          circles += '<div class="sched-circle ' + color + '" style="left:' + pct + '%"' +
+            ' onclick="editSetpoint(' + esc + ',' + di + ',' + ei + ')"' +
+            ' onmousedown="startDrag(event,' + esc + ',' + di + ',' + ei + ')"' +
+            ' ontouchstart="startDrag(event,' + esc + ',' + di + ',' + ei + ')"' +
+            ' title="' + secsToTime(entry.time || 0) + '">' +
+            temp +
+            '<span class="circle-del" onclick="event.stopPropagation();removeSetpoint(' + esc + ',' + di + ',' + ei + ')">&#215;</span>' +
+            popHtml +
+          '</div>';
+        });
+        daysHtml += '<div class="sched-row">' +
+          '<span class="sched-day-label">' + DAY_NAMES[di] + '</span>' +
+          '<div class="sched-timeline">' + gridlines + circles + '</div>' +
+          '<div class="sched-row-add"><button onclick="addSetpoint(' + esc + ',' + di + ')" title="Add setpoint">+</button></div>' +
+        '</div>';
+      }
+      daysHtml += '</div>';
+
+      // Time axis
+      let axisHtml = '<div class="sched-axis">';
+      for (let h = 0; h < 24; h += 2) {
+        const label = is24 ? String(h).padStart(2,'0') : (h === 0 ? '12a' : h < 12 ? h + 'a' : h === 12 ? '12p' : (h-12) + 'p');
+        axisHtml += '<span class="sched-axis-label" style="flex:1">' + label + '</span>';
+      }
+      axisHtml += '</div>';
+
+      // Save row
+      const dirtyClass = sc.dirty ? '' : ' style="display:none"';
+      let saveHtml = '<div class="sched-save-row" id="schedSave_' + serial + '"' + dirtyClass + '>' +
+        '<button class="btn-primary" onclick="saveSchedule(' + esc + ')" style="font-size:12px;padding:5px 14px">Save</button>' +
+        '<button class="btn-primary" onclick="resetSchedule(' + esc + ')" style="font-size:12px;padding:5px 14px;background:var(--border);color:var(--text)">Reset</button>' +
+        '<span class="sched-save-msg" id="schedMsg_' + serial + '"></span>' +
+      '</div>';
+
+      return '<div class="sched-section open">' + daysHtml + axisHtml + saveHtml + '</div>';
+    }
+
+    function markDirty(serial) {
+      const sc = scheduleCache[serial];
+      if (sc) sc.dirty = true;
+      const el = document.getElementById('schedSave_' + serial);
+      if (el) el.style.display = 'flex';
+      const msg = document.getElementById('schedMsg_' + serial);
+      if (msg) msg.textContent = '';
+    }
+
+    function ensureDays(sched) {
+      if (!sched.days) sched.days = {};
+      for (let i = 0; i < 7; i++) {
+        if (!sched.days[String(i)]) sched.days[String(i)] = [];
+      }
+    }
+
+    function removeSetpoint(serial, dayIdx, entryIdx) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      ensureDays(sc.schedule);
+      const dk = String(dayIdx);
+      sc.schedule.days[dk].splice(entryIdx, 1);
+      markDirty(serial);
+      renderDevices(lastDevices);
+    }
+
+    function addSetpoint(serial, dayIdx) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      ensureDays(sc.schedule);
+      const mode = (sc.schedule.schedule_mode || 'HEAT').toUpperCase();
+      const dk = String(dayIdx);
+      const entries = sc.schedule.days[dk];
+      // Place 1h after last setpoint, or 7:00 AM if empty
+      const setpoints = entries.filter(e => e.entry_type !== 'continuation');
+      const lastTime = setpoints.length > 0 ? Math.max(...setpoints.map(e => e.time || 0)) + 3600 : 25200;
+      const newEntry = { type: mode, time: Math.min(lastTime, 82800), entry_type: 'setpoint' };
+      if (mode === 'RANGE') { newEntry['temp-min'] = 18.0; newEntry['temp-max'] = 22.0; }
+      else { newEntry.temp = 20.0; }
+      entries.push(newEntry);
+      markDirty(serial);
+      renderDevices(lastDevices);
+    }
+
+    // Drag to adjust time
+    let dragSuppressClick = false;
+    function startDrag(event, serial, dayIdx, entryIdx) {
+      event.preventDefault();
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      const dk = String(dayIdx);
+      const entry = sc.schedule.days[dk][entryIdx];
+      if (!entry) return;
+
+      const circle = event.target.closest('.sched-circle');
+      const timeline = circle.parentElement;
+      const rect = timeline.getBoundingClientRect();
+      let moved = false;
+
+      // Create floating time label
+      const label = document.createElement('span');
+      label.className = 'sched-drag-label';
+      label.textContent = secsToTime(entry.time || 0);
+      circle.appendChild(label);
+
+      function onMove(e) {
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const pct = (clientX - rect.left) / rect.width;
+        const timeSecs = Math.round(Math.max(0, Math.min(pct, 1)) * 86400 / 900) * 900;
+        entry.time = timeSecs;
+        circle.style.left = ((timeSecs / 86400) * 100) + '%';
+        circle.title = secsToTime(timeSecs);
+        label.textContent = secsToTime(timeSecs);
+        moved = true;
+      }
+      function onEnd() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        label.remove();
+        if (moved) {
+          dragSuppressClick = true;
+          setTimeout(() => { dragSuppressClick = false; }, 50);
+          markDirty(serial);
+          renderDevices(lastDevices);
+        }
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, {passive: false});
+      document.addEventListener('touchend', onEnd);
+    }
+
+    let activePopover = null; // {serial, dayIdx, entryIdx}
+
+    function editSetpoint(serial, dayIdx, entryIdx) {
+      if (dragSuppressClick) return; // Don't open popover after a drag
+      // If clicking the same circle, close it
+      if (activePopover && activePopover.serial === serial &&
+          activePopover.dayIdx === dayIdx && activePopover.entryIdx === entryIdx) {
+        closePopover();
+        return;
+      }
+      closePopover();
+      activePopover = {serial, dayIdx, entryIdx};
+      renderDevices(lastDevices);
+    }
+
+    function closePopover() {
+      if (!activePopover) return;
+      activePopover = null;
+      if (_ssePending) { _ssePending = false; loadDevices(); return; }
+      renderDevices(lastDevices);
+    }
+
+    // Click outside to close popover
+    document.addEventListener('click', function(e) {
+      if (!activePopover) return;
+      if (e.target.closest('.sched-circle') || e.target.closest('.sched-popover')) return;
+      closePopover();
+    });
+
+    function adjustSetpointTemp(serial, dayIdx, entryIdx, field, delta) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      const d = lastDevices.find(x => x.serial === serial);
+      const scale = d ? (d.temperature_scale || 'F') : 'F';
+      const step = scale === 'F' ? (5/9) : 0.5; // 1°F or 0.5°C in Celsius
+      const dk = String(dayIdx);
+      const entry = sc.schedule.days[dk][entryIdx];
+      if (!entry) return;
+      const cur = entry[field] || 20;
+      entry[field] = Math.max(4.5, Math.min(32.0, cur + delta * step));
+      markDirty(serial);
+      // Keep popover open during adjustment
+      activePopover = {serial, dayIdx, entryIdx};
+      renderDevices(lastDevices);
+    }
+
+    function typeSetpointTemp(serial, dayIdx, entryIdx, field, inputEl) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      const d = lastDevices.find(x => x.serial === serial);
+      const scale = d ? (d.temperature_scale || 'F') : 'F';
+      const dk = String(dayIdx);
+      const entry = sc.schedule.days[dk][entryIdx];
+      if (!entry) return;
+      let val = parseFloat(inputEl.value);
+      if (isNaN(val)) return;
+      const celsius = scale === 'F' ? f2c(val) : val;
+      entry[field] = Math.max(4.5, Math.min(32.0, celsius));
+      markDirty(serial);
+    }
+
+    function buildPopoverHtml(serial, dayIdx, entryIdx, scale) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return '';
+      const dk = String(dayIdx);
+      const entry = sc.schedule.days[dk][entryIdx];
+      if (!entry) return '';
+      const mode = (entry.type || sc.schedule.schedule_mode || 'HEAT').toUpperCase();
+      const args = "'" + serial + "'," + dayIdx + "," + entryIdx;
+
+      function tempGroup(field, label) {
+        const raw = entry[field];
+        const display = raw != null ? (scale === 'F' ? Math.round(c2f(raw)) : Math.round(raw * 2) / 2) : '--';
+        const prefix = label ? '<span class="sched-pop-unit">' + label + '</span>' : '';
+        return '<div class="sched-pop-group">' +
+          prefix +
+          '<button class="sched-pop-btn" onclick="event.stopPropagation();adjustSetpointTemp(' + args + ',\'' + field + '\',-1)">−</button>' +
+          '<input class="sched-pop-val" value="' + display + '" size="3"' +
+          ' onchange="typeSetpointTemp(' + args + ',\'' + field + '\',this)"' +
+          ' onclick="event.stopPropagation();this.select()">' +
+          '<button class="sched-pop-btn" onclick="event.stopPropagation();adjustSetpointTemp(' + args + ',\'' + field + '\',1)">+</button>' +
+        '</div>';
+      }
+
+      let inner = '';
+      if (mode === 'RANGE') {
+        inner = tempGroup('temp-min', '') +
+          '<span class="sched-pop-sep">–</span>' +
+          tempGroup('temp-max', '');
+      } else {
+        inner = tempGroup('temp', '');
+      }
+      inner += '<span class="sched-pop-unit">\u00B0' + scale + '</span>';
+
+      return '<div class="sched-popover" onclick="event.stopPropagation()">' + inner + '</div>';
+    }
+
+    function resetSchedule(serial) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.original) return;
+      sc.schedule = JSON.parse(JSON.stringify(sc.original));
+      sc.dirty = false;
+      activePopover = null;
+      renderDevices(lastDevices);
+    }
+
+    async function saveSchedule(serial) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      const msg = document.getElementById('schedMsg_' + serial);
+      if (msg) { msg.textContent = 'Saving...'; msg.style.color = 'var(--text2)'; }
+      // Send with dict-of-dicts format (device native format)
+      const payload = Object.assign({}, sc.schedule, { days: denormalizeDays(sc.schedule.days) });
+      const result = await sendCommand(serial, 'set_schedule', payload);
+      if (result && result.success) {
+        sc.dirty = false;
+        sc.original = JSON.parse(JSON.stringify(sc.schedule));
+        if (msg) { msg.textContent = 'Saved'; msg.style.color = 'var(--accent)'; }
+        const saveEl = document.getElementById('schedSave_' + serial);
+        if (saveEl) setTimeout(() => { saveEl.style.display = 'none'; }, 1500);
+      } else {
+        if (msg) { msg.textContent = (result && result.message) || 'Save failed'; msg.style.color = '#dc2626'; }
+      }
+    }
+
+    function getHvacState(d) {
+      const h = d.hvac || {};
+      const heating = h.heater || h.alt_heat || h.heat_x2 || h.heat_x3;
+      const auxHeat = h.aux_heat;
+      const emerHeat = h.emer_heat;
+      const cooling = h.ac || h.cool_x2 || h.cool_x3;
+      const fanCooling = h.fan_cooling;
+      const fan = h.fan || d.fan_timer_active;
+      const humidifier = h.humidifier;
+      const dehumidifier = h.dehumidifier || h.auto_dehum;
+      const anyHeat = heating || auxHeat || emerHeat;
+      const anyCool = cooling || fanCooling;
+      return { heating, auxHeat, emerHeat, cooling, fanCooling, fan, humidifier, dehumidifier, anyHeat, anyCool };
+    }
+
+    function cardGlowClass(st) {
+      let cls = '';
+      if (st.anyHeat) cls += ' glow-heat';
+      if (st.anyCool) cls += ' glow-cool';
+      return cls;
+    }
+
+    function renderAccentStrip(st) { return ''; }
+
+    function renderHvacStatus(d) {
+      const st = getHvacState(d);
+      let pills = '';
+
+      // Emergency heat
+      if (st.emerHeat) {
+        pills += '<span class="hvac-pill pill-emer"><i class="mdi mdi-alert-circle"></i> Emergency Heat</span>';
+      }
+      // Aux heat
+      if (st.auxHeat) {
+        pills += '<span class="hvac-pill pill-heat"><i class="mdi mdi-radiator"></i> Aux Heat</span>';
+      }
+      // Primary heating
+      if (st.heating) {
+        const stage = d.hvac.heat_x3 ? ' (Stage 3)' : d.hvac.heat_x2 ? ' (Stage 2)' : '';
+        pills += '<span class="hvac-pill pill-heat"><i class="mdi mdi-fire"></i> Heating' + stage + '</span>';
+      }
+      // Primary cooling
+      if (st.cooling) {
+        const stage = d.hvac.cool_x3 ? ' (Stage 3)' : d.hvac.cool_x2 ? ' (Stage 2)' : '';
+        pills += '<span class="hvac-pill pill-cool"><i class="mdi mdi-snowflake"></i> Cooling' + stage + '</span>';
+      }
+      // Airwave (fan cooling)
+      if (st.fanCooling) {
+        pills += '<span class="hvac-pill pill-cool"><i class="mdi mdi-weather-windy"></i> Airwave</span>';
+      }
+      // Fan
+      if (st.fan) {
+        pills += '<span class="hvac-pill pill-fan"><i class="mdi mdi-fan fan-spin"></i> Fan</span>';
+      }
+      // Humidifier with intensity gauge
+      if (st.humidifier && d.target_humidity_enabled && d.humidity != null && d.target_humidity != null) {
+        const current = d.humidity;
+        const target = d.target_humidity;
+        const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+        const gap = target - current;
+        const intensity = gap > 20 ? 'High' : gap > 10 ? 'Med' : 'Low';
+        pills += '<span class="hvac-pill pill-humid"><i class="mdi mdi-water"></i>' +
+          '<span class="humid-gauge">' +
+            '<span class="humid-bar-track"><span class="humid-bar-fill" style="width:' + pct + '%"></span></span>' +
+            '<span class="humid-label">' + current + ' \u2192 ' + target + '%</span>' +
+          '</span>' +
+        '</span>';
+      } else if (st.humidifier) {
+        pills += '<span class="hvac-pill pill-humid"><i class="mdi mdi-water"></i> Humidifying</span>';
+      }
+      // Dehumidifier
+      if (st.dehumidifier) {
+        pills += '<span class="hvac-pill pill-humid"><i class="mdi mdi-water-off"></i> Dehumidifying</span>';
+      }
+
+      return pills ? '<div class="hvac-status">' + pills + '</div>' : '';
+    }
+
+    let lastDevices = [];
+
+    function renderDevices(devices) {
+      lastDevices = devices;
+      const el = document.getElementById('deviceList');
+      if (!devices.length) {
+        el.innerHTML = '<div class="empty-state"><i class="mdi mdi-thermostat-box"></i>No devices yet.<br>Click "Add a new device" to get started.</div>';
+        return;
+      }
+      el.innerHTML = '<div class="devices">' + devices.map(d => {
+        const on = d.is_available, scale = d.temperature_scale || 'F', mk = modeKey(d.mode);
+        const p = pendingTargets[d.serial] || {};
+        const tgt = p.target ?? d.target_temperature;
+        const tLow = p.low ?? d.target_temperature_low;
+        const tHigh = p.high ?? d.target_temperature_high;
+        const S = d.serial, q = "'" + S + "'";
+        const cap = d.capabilities || {};
+
+        // HVAC state
+        const hvacSt = getHvacState(d);
+        const hvacStatusHtml = renderHvacStatus(d);
+
+        // Last seen
+        let ls = !on && d.last_seen ? '<div class="card-last-seen">' + esc(relativeTime(d.last_seen)) + '</div>' : '';
+
+        // Leaf badge — next to target value
+        const leaf = d.has_leaf;
+        const leafHtml = leaf ? '<span class="leaf-badge" title="Energy-saving temperature"><i class="mdi mdi-leaf"></i></span>' : '';
+
+        // Eco state — manual-eco (user set) or auto-eco (occupancy/away)
+        const eco = d.eco_mode === 'manual-eco';
+        const autoEco = d.eco_mode === 'auto-eco';
+        const inEco = eco || autoEco;
+
+        // Target controls
+        let targetHtml = '';
+        if (mk === 'off' || mk === 'emergency') {
+          // nothing
+        } else if (inEco) {
+          const ecoTemps = d.eco_temperatures || {};
+          if (mk === 'auto') {
+            targetHtml = '<div>' +
+              '<div class="target-range">' +
+                '<div class="range-group">' +
+                  '<span class="range-label eco-target-label">Eco Low</span>' +
+                  '<button class="range-btn disabled" disabled>−</button>' +
+                  '<span class="range-value eco-target-value" style="font-size:inherit">' + fmtTemp(ecoTemps.low, scale) + '</span>' +
+                  '<button class="range-btn disabled" disabled>+</button>' +
+                '</div>' +
+                '<span class="range-sep">–</span>' +
+                '<div class="range-group">' +
+                  '<span class="range-label eco-target-label">Eco High</span>' +
+                  '<button class="range-btn disabled" disabled>−</button>' +
+                  '<span class="range-value eco-target-value" style="font-size:inherit">' + fmtTemp(ecoTemps.high, scale) + '</span>' +
+                  '<button class="range-btn disabled" disabled>+</button>' +
+                '</div>' +
+              '</div>' +
+              '<div class="eco-schedule-hint" style="text-align:center">Schedule: ' + fmtTemp(tLow, scale) + ' \u2013 ' + fmtTemp(tHigh, scale) + '</div>' +
+            '</div>';
+          } else {
+            const ecoTemp = mk === 'cool' ? ecoTemps.high : ecoTemps.low;
+            const ecoLabel = mk === 'cool' ? 'Eco Max' : 'Eco Min';
+            targetHtml = '<div>' +
+              '<div class="target-single">' +
+                '<button class="temp-btn disabled" disabled>−</button>' +
+                '<div class="target-info"><div class="target-label eco-target-label">' + ecoLabel + '</div><div class="target-value eco-target-value" style="font-size:inherit">' + fmtTemp(ecoTemp, scale) + leafHtml + '</div></div>' +
+                '<button class="temp-btn disabled" disabled>+</button>' +
+              '</div>' +
+              '<div class="eco-schedule-hint" style="text-align:center">Schedule: ' + fmtTemp(tgt, scale) + '</div>' +
+            '</div>';
+          }
+        } else if (mk === 'auto') {
+          targetHtml = '<div class="target-range">' +
+            '<div class="range-group">' +
+              '<span class="range-label">Low</span>' +
+              '<button class="range-btn" onclick="adjustTemp(' + q + ',' + tLow + ',\'' + scale + '\',-1,\'low\')">−</button>' +
+              '<span class="range-value">' + fmtTemp(tLow, scale) + '</span>' +
+              '<button class="range-btn" onclick="adjustTemp(' + q + ',' + tLow + ',\'' + scale + '\',1,\'low\')">+</button>' +
+            '</div>' +
+            '<span class="range-sep">–</span>' +
+            '<div class="range-group">' +
+              '<span class="range-label">High</span>' +
+              '<button class="range-btn" onclick="adjustTemp(' + q + ',' + tHigh + ',\'' + scale + '\',-1,\'high\')">−</button>' +
+              '<span class="range-value">' + fmtTemp(tHigh, scale) + '</span>' +
+              '<button class="range-btn" onclick="adjustTemp(' + q + ',' + tHigh + ',\'' + scale + '\',1,\'high\')">+</button>' +
+            '</div>' +
+          '</div>';
+        } else {
+          targetHtml = '<div class="target-single">' +
+            '<button class="temp-btn" onclick="adjustTemp(' + q + ',' + tgt + ',\'' + scale + '\',-1,\'target\')">−</button>' +
+            '<div class="target-info"><div class="target-label">Target</div><div class="target-value">' + fmtTemp(tgt, scale) + leafHtml + '</div>' +
+              (d.time_to_target > 0 && (hvacSt.anyHeat || hvacSt.anyCool) ? '<div class="ttt-label" title="Estimated time to reach target temperature">\u2248' + esc(Math.max(1, Math.round((d.time_to_target - Date.now() / 1000) / 60))) + ' min</div>' : '') +
+            '</div>' +
+            '<button class="temp-btn" onclick="adjustTemp(' + q + ',' + tgt + ',\'' + scale + '\',1,\'target\')">+</button>' +
+          '</div>';
+        }
+
+        // Mode buttons — capability-aware
+        const modes = [];
+        if (cap.can_heat !== false) modes.push('heat');
+        if (cap.can_cool !== false) modes.push('cool');
+        if (cap.can_heat !== false && cap.can_cool !== false) modes.push('auto');
+        if (cap.has_emer_heat) modes.push('emer');
+        modes.push('off');
+        const modeLabels = { heat: 'Heat', cool: 'Cool', auto: 'Auto', emer: 'Emer', off: 'Off' };
+        const modeTips = { heat: 'Heating mode', cool: 'Cooling mode', auto: 'Heat + Cool auto-switch', emer: 'Emergency heat', off: 'System off' };
+        const modeBtns = modes.map(m => {
+          const active = (m === 'emer' ? mk === 'emergency' : mk === m);
+          const cls = 'mode-btn' + (active ? ' active m-' + m : '');
+          const apiVal = m === 'auto' ? 'heat-cool' : m === 'emer' ? 'emergency' : m;
+          return '<button class="' + cls + '" onclick="setMode(' + q + ',\'' + apiVal + '\')" title="' + modeTips[m] + '">' + modeLabels[m] + '</button>';
+        }).join('');
+
+        // Fan controls — inline in control row
+        const hasFan = cap.has_fan;
+        const fanActive = d.fan_timer_active;
+        let fanHtml = '';
+        if (hasFan) {
+          let timerLabel = '';
+          let fanTip = 'Fan running';
+          if (fanActive && d.fan_timer_timeout) {
+            const mins = Math.max(0, Math.round((d.fan_timer_timeout - Date.now() / 1000) / 60));
+            if (mins > 0) { timerLabel = '<span class="fan-timer">' + mins + 'm</span>'; fanTip = 'Fan running \u2014 ' + mins + ' min left'; }
+          }
+          fanHtml =
+            '<div class="fan-seg">' +
+              '<button class="fan-btn' + (!fanActive ? ' active' : '') + '" onclick="setFan(' + q + ',\'auto\')" title="Fan runs only with HVAC">Auto</button>' +
+              '<button class="fan-btn' + (fanActive ? ' active' : '') + '" onclick="setFan(' + q + ',\'on\')" title="' + esc(fanTip) + '">' +
+                '<i class="mdi mdi-fan' + (fanActive ? ' fan-spin' : '') + '"></i> On' + timerLabel +
+              '</button>' +
+            '</div>';
+        }
+
+        // Safety warning
+        let safetyHtml = '';
+        if (d.safety_temp_activating_hvac) {
+          safetyHtml = '<span class="safety-pill" title="Safety temperatures are activating HVAC to protect your home"><i class="mdi mdi-alert"></i> Safety</span>';
+        }
+
+        const schedOpen = scheduleCache[S] && scheduleCache[S].open;
+        const schedToggleCls = 'sched-toggle' + (schedOpen ? ' open' : '');
+        const schedHtml = renderScheduleSection(S, scale, d.mode === 'heat-cool' ? 'RANGE' : (d.mode || 'heat').toUpperCase());
+
+        return '<div class="device-card' + cardGlowClass(hvacSt) + '">' +
+          renderAccentStrip(hvacSt) +
+          '<div class="card-row-top">' +
+            '<div class="card-identity">' +
+              '<span class="online-dot ' + (on ? 'on' : 'off') + '" title="' + (on ? 'Online' : 'Offline') + '"></span>' +
+              '<div>' +
+                '<h3>' + esc(d.name || S) + '</h3>' +
+                '<div class="card-serial">' + esc(S) + '</div>' +
+                ls +
+              '</div>' +
+            '</div>' +
+            '<div class="card-meta">' +
+              (d.humidity != null ? '<span title="Humidity"><i class="mdi mdi-water-percent"></i> ' + esc(d.humidity) + '%</span>' : '') +
+              safetyHtml +
+              '<button class="btn-delete" onclick="deleteDevice(' + q + ')" title="Remove device"><i class="mdi mdi-trash-can-outline"></i></button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="card-row-climate">' +
+            '<div>' +
+              '<div class="climate-current">' +
+                '<span class="temp-big">' + (tempVal(d.current_temperature, scale) ?? '--') + '</span>' +
+                '<span class="temp-unit">\u00B0' + esc(scale) + '</span>' +
+              '</div>' +
+            '</div>' +
+            targetHtml +
+          '</div>' +
+          hvacStatusHtml +
+          '<div class="card-row-controls">' +
+            '<div class="mode-seg">' + modeBtns + '</div>' +
+            '<button class="' + (eco ? 'eco-btn active' : autoEco ? 'eco-btn auto-eco' : 'eco-btn') + '" onclick="toggleEco(' + q + ',' + (eco || autoEco) + ')" title="' + (eco ? 'Eco mode active \u2014 click to resume schedule' : autoEco ? 'Auto-eco (away detected) \u2014 click to resume schedule' : 'Enable eco mode') + '">' +
+              '<i class="mdi mdi-home-export-outline"></i> Eco' + (autoEco ? '<span style="font-size:7px;opacity:.6;vertical-align:super;margin-left:1px">auto</span>' : '') + '</button>' +
+            '<span class="controls-spacer"></span>' +
+            fanHtml +
+          '</div>' +
+          '<button class="' + schedToggleCls + '" onclick="toggleSchedule(' + q + ')">' +
+            '<i class="mdi mdi-chevron-right"></i> ' + ({heat:'Heat',cool:'Cool','heat-cool':'Range'}[d.mode] || '') + ' Schedule' +
+          '</button>' +
+          schedHtml +
+        '</div>';
+      }).join('') + '</div>';
     }
 
     async function loadDevices() {
-      const deviceList = document.getElementById('deviceList');
       try {
-        const response = await fetch(BASE_PATH + '/api/devices');
-        const data = await response.json();
-        const devices = data.devices || [];
-
-        if (devices.length === 0) {
-          deviceList.innerHTML = '<p><em>No devices registered yet</em></p>';
-        } else {
-          deviceList.innerHTML = devices.map(d => {
-            const isOnline = d.is_available;
-            const statusClass = isOnline ? 'status-online' : 'status-offline';
-            const statusTitle = isOnline ? 'Online' : 'Offline';
-            const modeClass = getModeClass(d.mode);
-            const modeLabel = getModeLabel(d.mode);
-            const targetTemp = getTargetTemp(d);
-
-            const scale = d.temperature_scale || 'C';
-
-            return '<div class="device-item">' +
-              '<div class="device-info">' +
-                '<span class="status-dot ' + statusClass + '" title="' + statusTitle + '"></span> ' +
-                '<strong>' + (d.name || d.serial) + '</strong><br>' +
-                '<small class="text-muted monospace">' + d.serial + '</small>' +
-              '</div>' +
-              '<div class="device-status">' +
-                '<div class="device-temp">' +
-                  '<span class="device-temp-current">' + formatTemp(d.current_temperature, scale) + '</span>' +
-                  '<span class="device-temp-target">' + targetTemp + '</span>' +
-                '</div>' +
-                '<span class="device-mode ' + modeClass + '">' + modeLabel + '</span>' +
-                '<button onclick="deleteDevice(\'' + d.serial + '\')" class="btn btn-danger" title="Delete">' +
-                  '<i class="mdi mdi-delete"></i>' +
-                '</button>' +
-              '</div>' +
-            '</div>';
-          }).join('');
-        }
-      } catch (error) {
-        deviceList.innerHTML = '<p class="error">Error loading devices: ' + error.message + '</p>';
+        const r = await fetch(BASE_PATH + '/api/devices');
+        const data = await r.json();
+        Object.keys(pendingTargets).forEach(k => delete pendingTargets[k]);
+        renderDevices(data.devices || []);
+      } catch (err) {
+        document.getElementById('deviceList').innerHTML =
+          '<div class="setup-card"><p class="msg-error">Error loading devices: ' + esc(err.message) + '</p></div>';
       }
     }
 
     async function deleteDevice(serial) {
-      if (!confirm('Delete device ' + serial + '?')) return;
-
+      if (!confirm('Remove device ' + serial + '?')) return;
       try {
-        const response = await fetch(BASE_PATH + '/api/device', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serial: serial })
+        const r = await fetch(BASE_PATH + '/api/device', {
+          method: 'DELETE', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({serial})
         });
-
-        const result = await response.json();
-        if (result.success) {
-          loadDevices();
-        } else {
-          alert('Failed to delete: ' + (result.error || 'Unknown error'));
-        }
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
+        const j = await r.json();
+        if (j.success) loadDevices();
+        else alert('Failed: ' + (j.error || 'Unknown error'));
+      } catch (err) { alert('Error: ' + err.message); }
     }
   </script>
 </body>

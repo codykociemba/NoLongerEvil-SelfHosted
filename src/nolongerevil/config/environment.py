@@ -87,6 +87,13 @@ class Settings(BaseSettings):
         "Only sent when server pushes temperature/mode changes.",
     )
 
+    # Pairing configuration
+    require_device_pairing: bool = Field(
+        default=False,
+        description="Require devices to complete registration before transport access. "
+        "When False, any device can PUT and subscribe without pairing.",
+    )
+
     # Debug configuration
     debug_logging: bool = Field(
         default=False,

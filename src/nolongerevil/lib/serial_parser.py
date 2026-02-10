@@ -88,14 +88,40 @@ def extract_serial_from_custom_header(request: web.Request) -> str | None:
     return sanitize_serial(serial_header)
 
 
+def extract_serial_from_client_id(client_id: str | None) -> str | None:
+    """Extract device serial from X-nl-client-id header.
+
+    Devices send this header when using DEFAULT credentials (no valid session).
+    Format: d.{SERIAL}.{random} (same as Basic Auth username format).
+
+    Args:
+        client_id: X-nl-client-id header value
+
+    Returns:
+        Sanitized serial or None if not found/invalid
+    """
+    if not client_id:
+        return None
+
+    # Format: d.{SERIAL}.{random}
+    if "." in client_id:
+        parts = client_id.split(".")
+        serial = parts[1] if len(parts) > 1 and parts[1] else parts[0]
+        return sanitize_serial(serial)
+
+    return sanitize_serial(client_id)
+
+
 def extract_serial_from_request(request: web.Request) -> str | None:
     """Extract device serial from an aiohttp request.
 
     Tries multiple sources in order:
     1. Authorization header (Basic Auth username)
-    2. X-NL-Device-Serial header
-    3. Query parameter 'serial'
-    4. URL path parameter 'serial'
+    2. X-nl-client-id header (subscribe requests with DEFAULT creds)
+    3. X-nl-device-id header (frontdoor requests with DEFAULT creds)
+    4. X-NL-Device-Serial header
+    5. Query parameter 'serial'
+    6. URL path parameter 'serial'
 
     Args:
         request: aiohttp web request
@@ -106,6 +132,16 @@ def extract_serial_from_request(request: web.Request) -> str | None:
     # Try Basic Auth first (most common for device requests)
     auth_header = request.headers.get("Authorization")
     serial = extract_serial_from_basic_auth(auth_header)
+    if serial:
+        return serial
+
+    # Try X-nl-client-id (sent by device with DEFAULT creds on subscribe)
+    serial = extract_serial_from_client_id(request.headers.get("X-nl-client-id"))
+    if serial:
+        return serial
+
+    # Try X-nl-device-id (sent by device with DEFAULT creds on frontdoor)
+    serial = sanitize_serial(request.headers.get("X-nl-device-id"))
     if serial:
         return serial
 

@@ -60,9 +60,7 @@ async def handle_entry(request: web.Request) -> web.Response:
     }
 
     if entry_info:
-        logger.debug(
-            f"Entry request from {serial or request.remote}: {entry_info}"
-        )
+        logger.debug(f"Entry request from {serial or request.remote}: {entry_info}")
     else:
         logger.debug(f"Entry request from {serial or request.remote}")
 

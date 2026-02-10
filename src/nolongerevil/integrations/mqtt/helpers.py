@@ -210,33 +210,34 @@ def get_fan_mode(device_values: dict[str, Any]) -> HaFanMode:
     return HaFanMode.ON if is_fan_on else HaFanMode.AUTO
 
 
-def get_preset_mode(device_values: dict[str, Any], shared_values: dict[str, Any]) -> HaPreset:
+def get_preset_mode(
+    device_values: dict[str, Any],
+    shared_values: dict[str, Any],
+    structure_values: dict[str, Any] | None = None,
+) -> HaPreset:
     """Get current preset mode.
 
-    Away mode is checked from device object (auto_away or away field).
-    Eco mode is checked from device.eco.leaf or device.leaf.
+    Away mode is determined from the structure bucket's manual_eco_all field.
+    We use manual_eco_all instead of away because the firmware's schedule
+    preconditioning reverts auto-eco (from away=true) but respects manual-eco.
 
     Args:
         device_values: Device object values
-        shared_values: Shared object values (unused, kept for API compatibility)
+        shared_values: Shared object values
+        structure_values: Structure object values (contains authoritative away state)
 
     Returns:
         Preset mode
     """
-    # Check away mode from DEVICE object (not shared!)
-    auto_away = device_values.get("auto_away")
-    if isinstance(auto_away, (int, float)) and auto_away > 0:
+    # Check away mode from STRUCTURE bucket (authoritative source)
+    if structure_values and structure_values.get("manual_eco_all"):
         return HaPreset.AWAY
 
-    if device_values.get("away"):
-        return HaPreset.AWAY
-
-    # Check eco mode
+    # Check eco mode from device eco state.
+    # Only manual-eco counts as the ECO preset. auto-eco is the device's
+    # internal response to structure away=true (already covered above).
     eco = device_values.get("eco", {})
-    if isinstance(eco, dict) and eco.get("leaf"):
-        return HaPreset.ECO
-
-    if device_values.get("leaf"):
+    if isinstance(eco, dict) and eco.get("mode") == "manual-eco":
         return HaPreset.ECO
 
     return HaPreset.HOME

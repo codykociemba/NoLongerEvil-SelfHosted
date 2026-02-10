@@ -355,6 +355,13 @@ class SQLModelService(AbstractDeviceStateManager):
             models = result.scalars().all()
             return [model.serial for model in models]
 
+    async def get_all_registered_serials(self) -> list[str]:
+        """Get all device serials that have an ownership record."""
+        async with self._session_maker() as session:
+            result = await session.execute(select(DeviceOwnerModel))
+            models = result.scalars().all()
+            return [model.serial for model in models]
+
     async def delete_device_owner(self, serial: str, user_id: str) -> bool:
         """Delete device ownership record."""
         async with self._session_maker() as session:

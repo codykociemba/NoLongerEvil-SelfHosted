@@ -14,6 +14,7 @@ from nolongerevil.integrations.integration_manager import IntegrationManager
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.types import UserInfo
 from nolongerevil.middleware.debug_logger import create_debug_logger_middleware
+from nolongerevil.middleware.device_auth import create_device_auth_middleware
 from nolongerevil.middleware.device_heartbeat import create_device_heartbeat_middleware
 from nolongerevil.middleware.url_normalizer import create_url_normalizer_middleware
 from nolongerevil.routes.control import setup_control_routes
@@ -110,6 +111,7 @@ def create_proxy_app(
     subscription_manager: SubscriptionManager,
     weather_service: WeatherService,
     device_availability: DeviceAvailability,
+    storage: SQLModelService,
 ) -> web.Application:
     """Create the proxy (device) API application.
 
@@ -124,6 +126,7 @@ def create_proxy_app(
         subscription_manager: Subscription manager
         weather_service: Weather service
         device_availability: Device availability service
+        storage: SQLModel storage service for device owner lookups
 
     Returns:
         aiohttp Application
@@ -131,10 +134,14 @@ def create_proxy_app(
     app = web.Application(
         middlewares=[
             create_url_normalizer_middleware(),  # type: ignore[list-item] # Must be first - before body reading
+            create_device_auth_middleware(),  # type: ignore[list-item] # Auth before heartbeat — reject unknown devices early
             create_device_heartbeat_middleware(device_availability),  # type: ignore[list-item]
             create_debug_logger_middleware(),  # type: ignore[list-item]
         ]
     )
+
+    # Store storage on app for device auth middleware and transport handler
+    app["storage"] = storage
 
     # Set up Nest routes
     setup_nest_routes(
@@ -282,6 +289,7 @@ async def run_server() -> None:
         subscription_manager,
         weather_service,
         device_availability,
+        storage,
     )
     control_app = create_control_app(
         state_service,
@@ -289,6 +297,7 @@ async def run_server() -> None:
         device_availability,
         storage,
     )
+    control_app["integration_manager"] = integration_manager
 
     # Get SSL context
     ssl_context = get_ssl_context()

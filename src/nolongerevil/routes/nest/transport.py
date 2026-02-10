@@ -1,30 +1,49 @@
 """Nest transport endpoint - device state management and subscriptions.
 
-Subscribe Flow (Chunked Mode - Per Protocol Spec):
-1. Receive POST /subscribe with client's bucket revisions
-2. Compare revisions against server state
-3. Send HTTP headers immediately with Transfer-Encoding: chunked
-4. Device receives headers → becomes eligible to sleep immediately
-5. Server either:
-   - Sends JSON body immediately if updates available
-   - Holds connection open indefinitely, waiting for server-side data to push
-6. When server has data to push: send body chunk, device wakes instantly
-7. Device processes data, resubscribes
+Two endpoints:
+- POST /subscribe: Device sends bucket revisions, receives updates via chunked
+  long-poll. Also accepts inline state updates (value with rev/ts = 0).
+- POST /put: Device sends state deltas. Server merges into stored buckets and
+  returns the merged result. Supports conditional writes (if_object_revision).
+
+Subscribe Flow (Chunked Mode):
+1. Receive POST /subscribe with client's bucket revisions (and optional inline
+   state updates when value provided with rev/ts = 0)
+2. Compare timestamps against server state (timestamp is sole authority)
+3. Inject user + structure buckets for paired devices (completes pairing)
+4. Send HTTP headers immediately with Transfer-Encoding: chunked
+5. Device receives headers → becomes eligible to sleep immediately
+6. Server either:
+   - Sends JSON body immediately if server has newer data
+   - Holds connection open, waiting for server-side data to push
+7. When server has data to push: send body chunk, device wakes via WoWLAN.
+   Server then holds up to 3s for additional data before closing (inter-chunk
+   batching), since the device resets its 5s closing timer on each chunk.
+8. Device processes data, resubscribes
+
+PUT Flow:
+1. Receive POST /put with object deltas (partial bucket updates)
+2. Merge each delta into existing server state
+3. Only bump revision/timestamp when values actually changed (prevents
+   spurious full-bucket pushes on next subscribe)
+4. Return merged state to device. No subscribe notification is sent —
+   the PUT response is the only path back to the device.
 
 Key timing (configurable):
-- suspend_time_max: Device's sleep timer (e.g., 600s). Device wakes and resubscribes
-  even if no data was pushed. This is the FALLBACK mechanism.
-- connection_hold_timeout: Server holds connection suspend_time_max + 60s buffer.
-  Server should NEVER close before device's wake timer fires.
+- suspend_time_max: Device's sleep timer (e.g., 600s). Device wakes and
+  resubscribes even if no data was pushed. This is the FALLBACK mechanism.
+- connection_hold_timeout: Server holds connection suspend_time_max + 60s
+  buffer. Server should NEVER close before device's wake timer fires.
 
 IMPORTANT: Tickles (empty responses) are NOT used for normal operation.
-Tickles are for administrative use only (server shutdown, load balancer migration).
-For normal operation, server holds connection until data is available to push.
+Tickles are for administrative use only (server shutdown, load balancer
+migration). On timeout, the connection is closed without sending a body.
 
 Protocol compliance notes:
 - Uses Transfer-Encoding: chunked
 - Supports both request formats: objects array and named bucket fields
 - Implements X-nl-defer-device-window for batching rapid dial changes
+- Implements X-nl-disable-defer-window when pushing temperature changes
 """
 
 import asyncio
@@ -41,11 +60,23 @@ from nolongerevil.lib.serial_parser import extract_serial_from_request, extract_
 from nolongerevil.lib.types import DeviceObject
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
+from nolongerevil.services.sqlmodel_service import SQLModelService
 from nolongerevil.services.subscription_manager import SubscriptionManager
 from nolongerevil.utils.fan_timer import preserve_fan_timer_state
-from nolongerevil.utils.structure_assignment import assign_structure_id
+from nolongerevil.utils.structure_assignment import assign_structure_id, derive_structure_id
 
 logger = get_logger(__name__)
+
+# Devices that have received the structure bucket this server session.
+# On first connect after server/device restart, we force-send the structure
+# bucket even if timestamps match, because the device's internal mode may
+# have reset while the cached timestamp persists in flash.
+_structure_sent: set[str] = set()
+
+# After sending the first chunk on a subscribe connection, wait this long for
+# additional data before closing.  Must be under the device's 5-second
+# inter-chunk timeout so the connection never idles out on the device side.
+INTER_CHUNK_BATCH_TIMEOUT = 3.0
 
 
 def parse_object_key(object_key: str) -> tuple[str, str]:
@@ -58,12 +89,34 @@ def parse_object_key(object_key: str) -> tuple[str, str]:
 
 # Known bucket types from Nest protocol
 KNOWN_BUCKET_TYPES = {
-    "device", "shared", "structure", "schedule", "custom_schedule", "user",
-    "topaz", "demand_response", "demand_response_event", "where", "kryptonite",
-    "diagnostics", "device_alert_dialog", "servicegroup", "link", "message",
-    "tuneups", "utility", "diamond_sensor_config", "diamond_sensor_event",
-    "rate_plan", "tou", "demand_charge", "demand_charge_event", "hvac_partner",
-    "rcs_settings", "cloud_algo",
+    "device",
+    "shared",
+    "structure",
+    "schedule",
+    "custom_schedule",
+    "user",
+    "topaz",
+    "demand_response",
+    "demand_response_event",
+    "where",
+    "kryptonite",
+    "diagnostics",
+    "device_alert_dialog",
+    "servicegroup",
+    "link",
+    "message",
+    "tuneups",
+    "utility",
+    "diamond_sensor_config",
+    "diamond_sensor_event",
+    "rate_plan",
+    "tou",
+    "demand_charge",
+    "demand_charge_event",
+    "hvac_partner",
+    "rcs_settings",
+    "cloud_algo",
+    "occupancy",
 }
 
 
@@ -142,12 +195,14 @@ def parse_put_body(body: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
         if isinstance(value, dict) and "object_key" in value:
             # Extract inline fields into value dict (excluding metadata)
             inline_value = {k: v for k, v in value.items() if k not in metadata_fields}
-            objects.append({
-                "object_key": value["object_key"],
-                "base_object_revision": value.get("base_object_revision"),
-                "if_object_revision": value.get("if_object_revision"),
-                "value": inline_value if inline_value else None,
-            })
+            objects.append(
+                {
+                    "object_key": value["object_key"],
+                    "base_object_revision": value.get("base_object_revision"),
+                    "if_object_revision": value.get("if_object_revision"),
+                    "value": inline_value if inline_value else None,
+                }
+            )
 
     return session, objects
 
@@ -218,7 +273,9 @@ async def handle_transport_get(request: web.Request) -> web.Response:
     )
 
 
-def _make_response_headers(include_disable_defer: bool = False) -> dict[str, str]:
+def _make_response_headers(
+    include_disable_defer: bool = False,
+) -> dict[str, str]:
     """Create standard response headers for Nest protocol.
 
     Args:
@@ -252,25 +309,24 @@ def _contains_temperature_fields(objects: list[DeviceObject]) -> bool:
         "target_temperature_type",
         "hvac_mode",
     }
-    for obj in objects:
-        if obj.value and any(field in obj.value for field in temp_fields):
-            return True
-    return False
+    return any(obj.value and any(field in obj.value for field in temp_fields) for obj in objects)
 
 
 async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse:
     """Handle POST /nest/transport - subscribe to device updates.
 
     This is the main Nest protocol endpoint. It handles:
-    1. Device sending state updates (when value provided with rev/ts = 0)
+    1. Device sending inline state updates (when value provided with rev/ts = 0)
     2. Device subscribing to updates (long-poll with chunked response)
-    3. Server responding with outdated objects if device is behind
+    3. Server responding with outdated objects if server timestamp is newer
+    4. Injecting user/structure buckets for paired devices
 
     Chunked Response Flow:
     1. Send headers with Transfer-Encoding: chunked immediately
     2. Device can sleep after receiving headers
-    3. Server holds connection, waiting for data or timeout
-    4. Send JSON body when data available or on tickle timeout
+    3. Server holds connection, waiting for push data or timeout
+    4. On data: send chunk, then batch additional data for up to 3s
+    5. On timeout: close connection without sending body (no tickle)
     """
     serial = extract_serial_from_request(request)
     if not serial:
@@ -360,7 +416,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
         if is_update:
             # Device is sending us an update
             existing_value = server_obj.value if server_obj else {}
-            merged_value = {**existing_value, **value}
+            merged_value = {**existing_value, **(value or {})}
 
             # Store weave_device_id if provided
             if weave_device_id:
@@ -387,7 +443,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                             )
 
                 # Sync user state when away or postal_code changes
-                if "away" in value or "postal_code" in value:
+                if value and ("away" in value or "postal_code" in value):
                     device_owner = await state_service.storage.get_device_owner(serial)
                     if device_owner:
                         await state_service.storage.update_user_away_status(device_owner.user_id)
@@ -442,10 +498,6 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
         client_timestamp = client_obj.get("object_timestamp", 0)
         object_key = client_obj.get("object_key", "")
 
-        # Skip user.* objects - device doesn't accept them and loops forever
-        if object_key.startswith("user."):
-            continue
-
         # Use timestamp-only comparison (no revision tiebreaker)
         server_newer = _is_server_newer(
             response_obj.object_timestamp,
@@ -477,6 +529,115 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                 )
             )
 
+    # Include user + structure buckets for paired devices.
+    # The user bucket's "name" field completes pairing on the device.
+    # The structure bucket alone is not sufficient — the device requires
+    # the user bucket first.
+    storage: SQLModelService | None = request.app.get("storage")
+    if storage:
+        owner = await storage.get_device_owner(serial)
+        if owner:
+            now_ts = int(time.time() * 1000)
+
+            # User bucket — triggers pairing completion via "name" field.
+            # Only send if device doesn't already have the latest version.
+            user_key = f"user.{owner.user_id}"
+            has_user_in_outdated = any(obj.object_key == user_key for obj in outdated_objects)
+            if not has_user_in_outdated:
+                user_obj = state_service.get_object(serial, user_key)
+                if not user_obj:
+                    user_obj = DeviceObject(
+                        serial=serial,
+                        object_key=user_key,
+                        object_revision=1,
+                        object_timestamp=now_ts,
+                        value={"name": owner.user_id},
+                        updated_at=datetime.now(),
+                    )
+                    await state_service.upsert_object(user_obj)
+                    logger.info(f"Created user bucket {user_key} for paired device {serial}")
+
+                # Check if device already has this version (matching timestamp)
+                client_user = next(
+                    (o for o in processed_client_objects if o.get("object_key") == user_key),
+                    None,
+                )
+                client_ts = client_user.get("object_timestamp", 0) if client_user else 0
+
+                if client_ts < user_obj.object_timestamp:
+                    outdated_objects.append(user_obj)
+                    logger.debug(f"Including user bucket {user_key} for paired device {serial}")
+
+            # Structure bucket — establishes device-home association
+            structure_id = derive_structure_id(owner.user_id)
+            structure_key = f"structure.{structure_id}"
+            has_structure = any(obj.object_key == structure_key for obj in outdated_objects)
+            if not has_structure:
+                structure_obj = state_service.get_object(serial, structure_key)
+                if not structure_obj:
+                    structure_obj = DeviceObject(
+                        serial=serial,
+                        object_key=structure_key,
+                        object_revision=1,
+                        object_timestamp=now_ts,
+                        value={
+                            "name": "Home",
+                            "devices": [serial],
+                        },
+                        updated_at=datetime.now(),
+                    )
+                    await state_service.upsert_object(structure_obj)
+                    logger.info(
+                        f"Created structure bucket {structure_key} for paired device {serial}"
+                    )
+
+                # Check if device already has this version
+                client_structure = next(
+                    (o for o in processed_client_objects if o.get("object_key") == structure_key),
+                    None,
+                )
+                client_struct_ts = (
+                    client_structure.get("object_timestamp", 0) if client_structure else 0
+                )
+
+                first_time = serial not in _structure_sent
+                if client_struct_ts < structure_obj.object_timestamp or first_time:
+                    _structure_sent.add(serial)
+                    outdated_objects.append(structure_obj)
+                    logger.debug(
+                        f"Including structure bucket {structure_key} for paired device {serial}"
+                        f"{' (first connect)' if first_time else ''}"
+                    )
+
+    # Include default structure bucket for unclaimed devices (enables away mode)
+    if storage:
+        owner = await storage.get_device_owner(serial) if storage else None
+        if not owner:
+            structure_key = "structure.default"
+            has_structure = any(obj.object_key == structure_key for obj in outdated_objects)
+            if not has_structure:
+                structure_obj = state_service.get_object(serial, structure_key)
+                if structure_obj:
+                    client_structure = next(
+                        (
+                            o
+                            for o in processed_client_objects
+                            if o.get("object_key") == structure_key
+                        ),
+                        None,
+                    )
+                    client_struct_ts = (
+                        client_structure.get("object_timestamp", 0) if client_structure else 0
+                    )
+                    first_time = serial not in _structure_sent
+                    if client_struct_ts < structure_obj.object_timestamp or first_time:
+                        _structure_sent.add(serial)
+                        outdated_objects.append(structure_obj)
+                        logger.debug(
+                            f"Including default structure bucket for unclaimed device {serial}"
+                            f"{' (first connect)' if first_time else ''}"
+                        )
+
     # =========================================================================
     # Response handling - chunked vs non-chunked mode
     # =========================================================================
@@ -503,9 +664,10 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     # =========================================================================
     # 1. Send headers with Transfer-Encoding: chunked immediately
     # 2. Device receives headers → becomes eligible to sleep
-    # 3. If updates available: send body immediately
-    # 4. If no updates: hold connection, wait for data or timeout
-    # 5. Send body (data or empty tickle), close connection
+    # 3. If updates available: send body immediately, close connection
+    # 4. If no updates: hold connection, wait for push data or timeout
+    # 5. On data: send chunk, batch additional data for up to 3s, close
+    # 6. On timeout: close connection without body (no tickle)
     # =========================================================================
 
     # Determine if we should disable defer window (pushing temp changes)
@@ -537,9 +699,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     # If we have outdated objects, send them immediately
     if outdated_objects:
         formatted_objs = [format_object_for_response(obj) for obj in outdated_objects]
-        logger.debug(
-            f"Sending {len(outdated_objects)} outdated object(s) immediately for {serial}"
-        )
+        logger.debug(f"Sending {len(outdated_objects)} outdated object(s) immediately for {serial}")
         body_data = json.dumps({"objects": formatted_objs}).encode("utf-8")
         await response.write(body_data)
         await response.write_eof()
@@ -563,6 +723,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     # Direct queue access - no lookup needed
     notify_queue = subscription.notify_queue
     data_sent = False
+    changed_objects = None
 
     try:
         # Wait for data - hold connection until data arrives or device disconnects
@@ -576,15 +737,37 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                 timeout=settings.connection_hold_timeout,
             )
             # Real data arrived - send it to wake the device
-            logger.debug(f"Subscription {subscription.id}: pushing {len(changed_objects)} objects to wake device")
             body_bytes = json.dumps({"objects": changed_objects}).encode("utf-8")
             await response.write(body_bytes)
             data_sent = True
+            total_bytes = len(body_bytes)
+            chunk_count = 1
+            changed_objects = None  # written successfully, clear pending ref
+
+            # Batch loop: hold the connection briefly for additional data.
+            # The device resets its 5s closing timer on each chunk, so we can
+            # safely wait up to INTER_CHUNK_BATCH_TIMEOUT (3s) between chunks.
+            while True:
+                try:
+                    changed_objects = await asyncio.wait_for(
+                        notify_queue.get(),
+                        timeout=INTER_CHUNK_BATCH_TIMEOUT,
+                    )
+                    body_bytes = json.dumps({"objects": changed_objects}).encode("utf-8")
+                    await response.write(body_bytes)
+                    total_bytes += len(body_bytes)
+                    chunk_count += 1
+                    changed_objects = None
+                except TimeoutError:
+                    # No more data within batch window - done
+                    break
+
             logger.info(
-                f"Subscription {subscription.id}: write completed, sent {len(body_bytes)} bytes to {serial}"
+                f"Subscription {subscription.id}: sent {chunk_count} chunk(s), "
+                f"{total_bytes} bytes total to {serial}"
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Server-side timeout expired AFTER device should have already woken up
             # The device's suspend_time_max timer fires, device wakes, sends new subscribe
             # If we get here, the device must have disconnected without us noticing
@@ -598,6 +781,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     except (asyncio.CancelledError, ConnectionResetError, ConnectionError) as e:
         # Connection closed by device (it went to sleep) - this is normal
         logger.info(f"Subscription {subscription.id}: connection closed ({type(e).__name__}): {e}")
+        # Buffer undelivered data so the next subscribe replays it
+        if changed_objects is not None:
+            await subscription_manager.store_pending_push(serial, changed_objects)
 
     finally:
         logger.debug(f"Removing subscription {subscription.id} for {serial}")
@@ -611,7 +797,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
             await response.write_eof()
             logger.debug(f"Subscription {subscription.id}: write_eof completed for {serial}")
         except (ConnectionResetError, ConnectionError) as e:
-            logger.info(f"Subscription {subscription.id}: write_eof failed ({type(e).__name__}): {e}")
+            logger.info(
+                f"Subscription {subscription.id}: write_eof failed ({type(e).__name__}): {e}"
+            )
 
     return response
 
@@ -633,7 +821,6 @@ async def handle_transport_put(request: web.Request) -> web.Response:
         return web.Response(text="Invalid request: objects array required", status=400)
 
     state_service: DeviceStateService = request.app["state_service"]
-    subscription_manager: SubscriptionManager = request.app["subscription_manager"]
 
     weave_device_id = extract_weave_device_id(request)
     response_objects: list[dict[str, Any]] = []
@@ -698,7 +885,15 @@ async def handle_transport_put(request: web.Request) -> web.Response:
             if values_changed
             else (server_obj.object_revision if server_obj else 0)
         )
-        new_timestamp = int(time.time() * 1000)
+        # Only bump timestamp when values actually changed. Duplicate PUTs with
+        # identical values would advance the server timestamp while the device
+        # tracks the older timestamp, causing a spurious full-bucket push on the
+        # next subscribe that can override the device's local schedule.
+        new_timestamp = (
+            int(time.time() * 1000)
+            if values_changed
+            else (server_obj.object_timestamp if server_obj else int(time.time() * 1000))
+        )
 
         # Save update
         new_obj = DeviceObject(
@@ -729,31 +924,19 @@ async def handle_transport_put(request: web.Request) -> web.Response:
             await state_service.storage.update_user_away_status(device_owner.user_id)
             await state_service.storage.sync_user_weather_from_device(device_owner.user_id)
 
-    # Notify subscribers (pushes to long-poll held connections)
-    if response_objects:
-        notified = await subscription_manager.notify_subscribers_with_dicts(
-            serial, response_objects
-        )
-        logger.debug(
-            f"PUT: Notified {notified} subscriber(s) for {serial}, "
-            f"{len(response_objects)} object(s) updated"
-        )
-
-    # Include shared.{serial} in PUT response to ensure device gets temperature updates
-    # This provides a reliable sync point since PUT always gets a response
-    shared_key = f"shared.{serial}"
-    shared_obj = state_service.get_object(serial, shared_key)
-    if shared_obj:
-        # Check if shared wasn't already in response
-        shared_keys_in_response = [obj.get("object_key") for obj in response_objects]
-        if shared_key not in shared_keys_in_response:
-            response_objects.append({
-                "object_key": shared_obj.object_key,
-                "object_revision": shared_obj.object_revision,
-                "object_timestamp": shared_obj.object_timestamp,
-                "value": shared_obj.value,
-            })
-            logger.debug(f"PUT: Added shared.{serial} to response (rev={shared_obj.object_revision})")
+    # NOTE: Previously notified long-poll subscribers here with the full merged
+    # bucket after every PUT.  This was always redundant (the device already
+    # receives the same data in the PUT response) and created a race condition:
+    # if TCP delivery of the subscribe chunk was delayed even 1-2 seconds past a
+    # schedule transition, the stale target_temperature from the pre-schedule
+    # state would overwrite the schedule-set value.  Removed 2026-02-10.
+    #
+    # NOTE: Previously piggybacked shared.{serial} on every PUT response as a
+    # "reliable sync point."  This caused stale target_temperature values from
+    # old user commands to be re-pushed to the device after server restarts or
+    # eco-exit, overriding the device's schedule-derived setpoint.  The subscribe
+    # path already handles pushing newer server data via timestamp comparison,
+    # which is the correct mechanism.  Removed 2026-02-09.
 
     return web.json_response(
         {"objects": response_objects},

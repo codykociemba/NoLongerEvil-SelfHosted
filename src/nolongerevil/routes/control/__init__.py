@@ -34,7 +34,7 @@ def setup_control_routes(
     create_webui_routes(app)
 
     if storage:
-        create_registration_routes(app, storage)
+        create_registration_routes(app, storage, state_service, subscription_manager)
 
 
 __all__ = [

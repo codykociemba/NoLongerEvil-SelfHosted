@@ -33,16 +33,16 @@ A self-hosted server implementation for Nest thermostats, written in Python. Thi
    cd nolongerevil-selfhosted
    ```
 
-2. Create your configuration:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your settings
-   ```
+2. Edit `docker-compose.yml` with your settings (network, ports, environment variables).
 
 3. Start the server:
    ```bash
    docker compose up -d
    ```
+
+4. **Prepare your thermostat.** The thermostat only sends its complete state during a fresh boot. If your thermostat was previously connected to another server (or Nest's cloud), it will only send small updates and the server won't have a full picture of the device. Either:
+   - **Factory reset** the thermostat before connecting it to the server, or
+   - **Reboot** the thermostat after the server is running (press and hold the display until the screen goes black, wait a few seconds, then press it again until the Nest logo appears)
 
 The server will be available at:
 - **Device API**: Port 7001 (HTTP) or 443 (HTTPS)
@@ -75,9 +75,11 @@ Requires Python 3.11 or higher.
    # Or: python -m nolongerevil.main
    ```
 
+5. **Prepare your thermostat** (same as Docker above). Factory reset it before connecting, or reboot it after the server is running, so it sends its full state.
+
 ## Configuration
 
-Configuration is done via environment variables or a `.env` file:
+For **Docker Compose**, edit the `environment:` block in `docker-compose.yml`. For **local Python**, copy `.env.example` to `.env` and edit it. Available settings:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -86,6 +88,7 @@ Configuration is done via environment variables or a `.env` file:
 | `CONTROL_PORT` | `8081` | Port for control API |
 | `CERT_DIR` | - | Directory containing TLS certificates |
 | `ENTRY_KEY_TTL_SECONDS` | `3600` | Pairing code expiration (seconds) |
+| `REQUIRE_DEVICE_PAIRING` | `false` | Require entry key pairing before device transport access |
 | `WEATHER_CACHE_TTL_MS` | `600000` | Weather cache duration (ms) |
 | `MAX_SUBSCRIPTIONS_PER_DEVICE` | `100` | Max concurrent subscriptions |
 | `SUSPEND_TIME_MAX` | `600` | Device sleep duration before fallback wake (seconds) |

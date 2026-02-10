@@ -206,25 +206,45 @@ class TestGetPresetMode:
         """Test that home is returned by default."""
         assert get_preset_mode({}, {}) == "home"
 
-    def test_away_with_auto_away(self):
-        """Test that away is returned with auto_away > 0."""
-        assert get_preset_mode({"auto_away": 1}, {}) == "away"
+    def test_away_from_structure_manual_eco(self):
+        """Test that away is returned when structure has manual_eco_all=True."""
+        assert get_preset_mode({}, {}, {"manual_eco_all": True}) == "away"
 
-    def test_away_with_away_flag(self):
-        """Test that away is returned with away flag."""
-        assert get_preset_mode({"away": True}, {}) == "away"
+    def test_home_when_structure_manual_eco_false(self):
+        """Test that home is returned when structure manual_eco_all=False."""
+        assert get_preset_mode({}, {}, {"manual_eco_all": False}) == "home"
 
-    def test_eco_with_leaf(self):
-        """Test that eco is returned with leaf flag."""
-        assert get_preset_mode({"leaf": True}, {}) == "eco"
+    def test_home_without_structure(self):
+        """Test that home is returned when no structure bucket."""
+        assert get_preset_mode({}, {}, None) == "home"
 
-    def test_eco_with_eco_leaf(self):
-        """Test that eco is returned with eco.leaf."""
-        assert get_preset_mode({"eco": {"leaf": True}}, {}) == "eco"
+    def test_eco_with_manual_eco_mode(self):
+        """Test that eco is returned with eco.mode=manual-eco."""
+        assert get_preset_mode({"eco": {"mode": "manual-eco"}}, {}) == "eco"
 
-    def test_away_takes_precedence_over_eco(self):
-        """Test that away takes precedence over eco."""
-        assert get_preset_mode({"auto_away": 1, "leaf": True}, {}) == "away"
+    def test_auto_eco_does_not_trigger_eco_preset(self):
+        """Test that auto-eco (away-triggered) doesn't show as ECO preset."""
+        assert get_preset_mode({"eco": {"mode": "auto-eco"}}, {}) == "home"
+
+    def test_manual_eco_with_structure_shows_away(self):
+        """Test that manual_eco_all=true shows AWAY, not ECO."""
+        assert get_preset_mode({"eco": {"mode": "manual-eco"}}, {}, {"manual_eco_all": True}) == "away"
+
+    def test_home_when_eco_mode_schedule(self):
+        """Test that home is returned when eco.mode is schedule."""
+        assert get_preset_mode({"eco": {"mode": "schedule"}}, {}) == "home"
+
+    def test_manual_eco_all_takes_precedence_over_device_eco(self):
+        """Test that structure manual_eco_all takes precedence over device eco mode."""
+        assert get_preset_mode({"eco": {"mode": "manual-eco"}}, {}, {"manual_eco_all": True}) == "away"
+
+    def test_auto_away_does_not_trigger_away_preset(self):
+        """Test that device auto_away (occupancy sensor) doesn't set away preset."""
+        assert get_preset_mode({"auto_away": 1}, {}) == "home"
+
+    def test_leaf_alone_does_not_trigger_eco(self):
+        """Test that transient leaf flag alone doesn't set eco preset."""
+        assert get_preset_mode({"leaf": True}, {}) == "home"
 
 
 class TestGetDeviceName:

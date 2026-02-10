@@ -105,8 +105,6 @@ def validate_and_clamp_temperatures(
         "target_temperature_low",
         "away_temperature_high",
         "away_temperature_low",
-        "eco_temperature_high",
-        "eco_temperature_low",
     ]
 
     result = values.copy()
