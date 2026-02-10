@@ -1,30 +1,49 @@
 """Nest transport endpoint - device state management and subscriptions.
 
-Subscribe Flow (Chunked Mode - Per Protocol Spec):
-1. Receive POST /subscribe with client's bucket revisions
-2. Compare revisions against server state
-3. Send HTTP headers immediately with Transfer-Encoding: chunked
-4. Device receives headers → becomes eligible to sleep immediately
-5. Server either:
-   - Sends JSON body immediately if updates available
-   - Holds connection open indefinitely, waiting for server-side data to push
-6. When server has data to push: send body chunk, device wakes instantly
-7. Device processes data, resubscribes
+Two endpoints:
+- POST /subscribe: Device sends bucket revisions, receives updates via chunked
+  long-poll. Also accepts inline state updates (value with rev/ts = 0).
+- POST /put: Device sends state deltas. Server merges into stored buckets and
+  returns the merged result. Supports conditional writes (if_object_revision).
+
+Subscribe Flow (Chunked Mode):
+1. Receive POST /subscribe with client's bucket revisions (and optional inline
+   state updates when value provided with rev/ts = 0)
+2. Compare timestamps against server state (timestamp is sole authority)
+3. Inject user + structure buckets for paired devices (completes pairing)
+4. Send HTTP headers immediately with Transfer-Encoding: chunked
+5. Device receives headers → becomes eligible to sleep immediately
+6. Server either:
+   - Sends JSON body immediately if server has newer data
+   - Holds connection open, waiting for server-side data to push
+7. When server has data to push: send body chunk, device wakes via WoWLAN.
+   Server then holds up to 3s for additional data before closing (inter-chunk
+   batching), since the device resets its 5s closing timer on each chunk.
+8. Device processes data, resubscribes
+
+PUT Flow:
+1. Receive POST /put with object deltas (partial bucket updates)
+2. Merge each delta into existing server state
+3. Only bump revision/timestamp when values actually changed (prevents
+   spurious full-bucket pushes on next subscribe)
+4. Return merged state to device. No subscribe notification is sent —
+   the PUT response is the only path back to the device.
 
 Key timing (configurable):
-- suspend_time_max: Device's sleep timer (e.g., 600s). Device wakes and resubscribes
-  even if no data was pushed. This is the FALLBACK mechanism.
-- connection_hold_timeout: Server holds connection suspend_time_max + 60s buffer.
-  Server should NEVER close before device's wake timer fires.
+- suspend_time_max: Device's sleep timer (e.g., 600s). Device wakes and
+  resubscribes even if no data was pushed. This is the FALLBACK mechanism.
+- connection_hold_timeout: Server holds connection suspend_time_max + 60s
+  buffer. Server should NEVER close before device's wake timer fires.
 
 IMPORTANT: Tickles (empty responses) are NOT used for normal operation.
-Tickles are for administrative use only (server shutdown, load balancer migration).
-For normal operation, server holds connection until data is available to push.
+Tickles are for administrative use only (server shutdown, load balancer
+migration). On timeout, the connection is closed without sending a body.
 
 Protocol compliance notes:
 - Uses Transfer-Encoding: chunked
 - Supports both request formats: objects array and named bucket fields
 - Implements X-nl-defer-device-window for batching rapid dial changes
+- Implements X-nl-disable-defer-window when pushing temperature changes
 """
 
 import asyncio
@@ -297,15 +316,17 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     """Handle POST /nest/transport - subscribe to device updates.
 
     This is the main Nest protocol endpoint. It handles:
-    1. Device sending state updates (when value provided with rev/ts = 0)
+    1. Device sending inline state updates (when value provided with rev/ts = 0)
     2. Device subscribing to updates (long-poll with chunked response)
-    3. Server responding with outdated objects if device is behind
+    3. Server responding with outdated objects if server timestamp is newer
+    4. Injecting user/structure buckets for paired devices
 
     Chunked Response Flow:
     1. Send headers with Transfer-Encoding: chunked immediately
     2. Device can sleep after receiving headers
-    3. Server holds connection, waiting for data or timeout
-    4. Send JSON body when data available or on tickle timeout
+    3. Server holds connection, waiting for push data or timeout
+    4. On data: send chunk, then batch additional data for up to 3s
+    5. On timeout: close connection without sending body (no tickle)
     """
     serial = extract_serial_from_request(request)
     if not serial:
@@ -643,9 +664,10 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     # =========================================================================
     # 1. Send headers with Transfer-Encoding: chunked immediately
     # 2. Device receives headers → becomes eligible to sleep
-    # 3. If updates available: send body immediately
-    # 4. If no updates: hold connection, wait for data or timeout
-    # 5. Send body (data or empty tickle), close connection
+    # 3. If updates available: send body immediately, close connection
+    # 4. If no updates: hold connection, wait for push data or timeout
+    # 5. On data: send chunk, batch additional data for up to 3s, close
+    # 6. On timeout: close connection without body (no tickle)
     # =========================================================================
 
     # Determine if we should disable defer window (pushing temp changes)

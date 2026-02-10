@@ -1,4 +1,28 @@
-"""MQTT integration for Home Assistant and other MQTT consumers."""
+"""MQTT integration for Home Assistant and other MQTT consumers.
+
+Bidirectional bridge between device state and MQTT:
+
+Outbound (device → MQTT):
+- Receives device state changes via on_device_state_change() callback,
+  called by the state service whenever a device object is upserted.
+- Publishes HA state to {prefix}/{serial}/ha/state (JSON)
+- Republishes HA discovery config on every state change (required because
+  heat-cool mode changes the set of temperature topics the climate entity
+  exposes)
+
+Inbound (MQTT → device):
+- Subscribes to two command topic patterns:
+    {prefix}/+/+/+/set     — raw field writes (e.g., .../shared/target_temperature/set)
+    {prefix}/+/ha/+/set    — HA-native commands (e.g., .../ha/mode/set)
+- Dispatches commands via execute_command() from command.py, which merges
+  into the correct bucket and pushes to the device via
+  subscription_manager.notify_all_subscribers()
+
+Eco mode:
+- HA "eco" preset maps to set_away(True) → manual_eco_all in structure bucket
+- Uses manual_eco_all instead of away because the firmware's schedule
+  preconditioning reverts auto-eco but respects manual-eco.
+"""
 
 import asyncio
 import contextlib

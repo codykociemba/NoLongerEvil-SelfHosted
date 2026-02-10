@@ -1,4 +1,32 @@
-"""Control API command endpoint - send commands to thermostat."""
+"""Control API command endpoint - send commands to thermostat.
+
+Commands are dispatched through execute_command(), which:
+1. Looks up the handler in COMMAND_HANDLERS
+2. Calls the handler to validate input and produce a value dict
+3. Routes the value to the correct bucket via COMMAND_OBJECT_KEYS
+4. Merges into server state (or replaces, for schedules)
+5. Pushes to the device via subscription_manager.notify_all_subscribers()
+
+Supported commands:
+- set_temperature:    Target temp (single or high/low range) → shared bucket
+- set_mode:           HVAC mode (off/heat/cool/heat-cool/emergency) → shared bucket
+                      "eco" is rejected here; use set_away instead
+- set_away:           Eco mode via manual_eco_all → structure bucket
+- set_fan:            Fan timer (on/auto/duration) → device bucket
+- set_eco_temperatures: Eco high/low bounds → device bucket
+- set_schedule:       Full weekly schedule replacement (ver 2) → schedule bucket
+- set_schedule_mode:  Schedule mode (HEAT/COOL/RANGE) → shared bucket
+- set_device_setting: Generic setter for ~45 whitelisted device fields → device bucket
+
+Bucket routing (COMMAND_OBJECT_KEYS):
+- shared.{serial}:     temperature, mode, schedule_mode
+- device.{serial}:     fan, eco temps, whitelisted device settings
+- structure.{id}:      manual_eco_all, manual_eco_timestamp
+- schedule.{serial}:   full schedule (replacement, not merge)
+
+Temperature commands enforce safety bounds via validate_and_clamp_temperatures().
+Mode commands check device capabilities (can_heat, can_cool, has_emer_heat).
+"""
 
 import time
 from collections.abc import Awaitable, Callable
