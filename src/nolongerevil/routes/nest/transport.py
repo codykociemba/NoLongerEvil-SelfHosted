@@ -854,11 +854,13 @@ async def handle_transport_put(request: web.Request) -> web.Response:
                     f"if_object_revision={if_rev} != server_revision={server_rev}, "
                     f"skipping merge (device will retry with updated revision)"
                 )
-                response_objects.append({
-                    "object_revision": server_obj.object_revision if server_obj else 0,
-                    "object_timestamp": server_obj.object_timestamp if server_obj else 0,
-                    "object_key": object_key,
-                })
+                response_objects.append(
+                    {
+                        "object_revision": server_obj.object_revision if server_obj else 0,
+                        "object_timestamp": server_obj.object_timestamp if server_obj else 0,
+                        "object_key": object_key,
+                    }
+                )
                 continue
 
         # Log base_object_revision (informational only, no rejection)
