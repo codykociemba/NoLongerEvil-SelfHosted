@@ -768,15 +768,23 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
             )
 
         except TimeoutError:
-            # Server-side timeout expired AFTER device should have already woken up
-            # The device's suspend_time_max timer fires, device wakes, sends new subscribe
-            # If we get here, the device must have disconnected without us noticing
-            # This is expected behavior - just close the connection quietly
+            # Server hold timeout expired. Two cases:
+            # 1. Device already resubscribed → we were holding a dead connection
+            #    (NAT/firewall dropped it, device reconnected on a new socket)
+            # 2. Device hasn't resubscribed → normal timeout, device may have
+            #    disconnected from network entirely
             # DO NOT send tickle - tickles force immediate reconnect
-            logger.debug(
-                f"Subscription {subscription.id}: server hold timeout at {settings.connection_hold_timeout:.0f}s - "
-                f"device should have already resubscribed (suspend_time_max={settings.suspend_time_max}s)"
-            )
+            sub_count = subscription_manager.get_subscription_count(serial)
+            if sub_count > 1:
+                logger.info(
+                    f"Subscription {subscription.id}: held dead connection for "
+                    f"{settings.connection_hold_timeout:.0f}s — device already resubscribed"
+                )
+            else:
+                logger.debug(
+                    f"Subscription {subscription.id}: server hold timeout at "
+                    f"{settings.connection_hold_timeout:.0f}s"
+                )
 
     except (asyncio.CancelledError, ConnectionResetError, ConnectionError) as e:
         # Connection closed by device (it went to sleep) - this is normal
