@@ -906,14 +906,17 @@ async def handle_transport_put(request: web.Request) -> web.Response:
         )
         await state_service.upsert_object(new_obj)
 
-        # Build response
+        # Build response — rev/ts/key only, no value echo.
+        # The device already knows what it sent, and the subscribe channel
+        # handles server→device pushes.  Echoing the full merged bucket here
+        # caused stale target_temperature from the server's stored state to
+        # overwrite the device's schedule-derived setpoint (race between
+        # HVAC-state PUT and SetTargetTemperature on the device side).
         response_obj: dict[str, Any] = {
             "object_revision": new_obj.object_revision,
             "object_timestamp": new_obj.object_timestamp,
             "object_key": new_obj.object_key,
         }
-        if values_changed:
-            response_obj["value"] = new_obj.value
 
         response_objects.append(response_obj)
 
