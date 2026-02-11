@@ -842,24 +842,24 @@ async def handle_transport_put(request: web.Request) -> web.Response:
         if if_rev is not None:
             server_rev = server_obj.object_revision if server_obj else 0
             if if_rev != server_rev:
-                # Per spec: return 200 OK with server state for device reconciliation
-                # Device compares timestamps and decides which version wins
+                # CAS conflict: reject this bucket's write but keep processing
+                # the rest.  Return rev/ts/key only — no value echo.  Including
+                # value here would overwrite the device's local state (the
+                # fields it was trying to PUT) and clear its dirty flags,
+                # silently dropping the rejected write with no retry.  Without
+                # value, the device keeps its local state, dirty flags survive,
+                # and it retries the PUT next cycle with the updated revision.
                 logger.debug(
                     f"PUT: Conditional write conflict for {object_key}: "
                     f"if_object_revision={if_rev} != server_revision={server_rev}, "
-                    f"returning server state for reconciliation"
+                    f"skipping merge (device will retry with updated revision)"
                 )
-                conflict_response = {
+                response_objects.append({
                     "object_revision": server_obj.object_revision if server_obj else 0,
                     "object_timestamp": server_obj.object_timestamp if server_obj else 0,
                     "object_key": object_key,
-                    "value": server_obj.value if server_obj else {},
-                }
-                return web.json_response(
-                    {"objects": [conflict_response]},
-                    status=200,  # NOT 409 - device reconciles via timestamp comparison
-                    headers=_make_response_headers(),
-                )
+                })
+                continue
 
         # Log base_object_revision (informational only, no rejection)
         base_rev = client_obj.get("base_object_revision")
