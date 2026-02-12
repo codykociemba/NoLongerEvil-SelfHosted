@@ -30,10 +30,12 @@ PUT Flow:
    the PUT response is the only path back to the device.
 
 Key timing (configurable):
-- suspend_time_max: Device's sleep timer (e.g., 600s). Device wakes and
-  resubscribes even if no data was pushed. This is the FALLBACK mechanism.
-- connection_hold_timeout: Server holds connection suspend_time_max + 60s
-  buffer. Server should NEVER close before device's wake timer fires.
+- suspend_time_max: Device's safety-net wake timer (default 300s). If the
+  server hasn't closed the connection by this time, the device wakes anyway.
+- connection_hold_timeout: Server closes the connection after this many
+  seconds (default: suspend_time_max - 10). This is the PRIMARY mechanism
+  that drives the subscribe cycle. Must be shorter than suspend_time_max
+  and must not exceed ~350s (WiFi keepalive probe timeout constraint).
 
 IMPORTANT: Tickles (empty responses) are NOT used for normal operation.
 Tickles are for administrative use only (server shutdown, load balancer
@@ -717,7 +719,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
 
     logger.debug(
         f"Holding chunked connection for {serial} (subscription={subscription.id}, session={session}), "
-        f"server hold timeout at {settings.connection_hold_timeout:.0f}s (device wakes at {settings.suspend_time_max}s)"
+        f"server closes at {settings.connection_hold_timeout:.0f}s (device safety-net timer at {settings.suspend_time_max}s)"
     )
 
     # Direct queue access - no lookup needed
@@ -726,12 +728,10 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     changed_objects = None
 
     try:
-        # Wait for data - hold connection until data arrives or device disconnects
-        # Let device wake timer fire naturally
-        # DO NOT send tickle/empty response - that's for administrative use only
+        # Hold connection until data arrives, timeout, or device disconnects.
+        # On timeout, close cleanly (no tickle) — the close itself wakes the
+        # device via WoWLAN and triggers a resubscribe.
         try:
-            # Use connection_hold_timeout which is > suspend_time_max
-            # This ensures we never close before device's wake timer fires
             changed_objects = await asyncio.wait_for(
                 notify_queue.get(),
                 timeout=settings.connection_hold_timeout,
@@ -768,12 +768,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
             )
 
         except TimeoutError:
-            # Server hold timeout expired. Two cases:
-            # 1. Device already resubscribed → we were holding a dead connection
-            #    (NAT/firewall dropped it, device reconnected on a new socket)
-            # 2. Device hasn't resubscribed → normal timeout, device may have
-            #    disconnected from network entirely
-            # DO NOT send tickle - tickles force immediate reconnect
+            # Server hold timeout expired — this is the normal path.
+            # Closing the connection wakes the device via WoWLAN → resubscribe.
+            # DO NOT send a tickle/empty body — just close cleanly.
             sub_count = subscription_manager.get_subscription_count(serial)
             if sub_count > 1:
                 logger.info(
@@ -787,7 +784,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                 )
 
     except (asyncio.CancelledError, ConnectionResetError, ConnectionError) as e:
-        # Connection closed by device (it went to sleep) - this is normal
+        # Device disconnected (network change, reboot, or NAT timeout)
         logger.info(f"Subscription {subscription.id}: connection closed ({type(e).__name__}): {e}")
         # Buffer undelivered data so the next subscribe replays it
         if changed_objects is not None:

@@ -302,10 +302,9 @@ async def run_server() -> None:
     # Get SSL context
     ssl_context = get_ssl_context()
 
-    # Create runners with extended keepalive timeout for long-lived connections
-    # Must be > suspend_time_max (default 600s) to avoid premature connection closure
-    # Server idle timeout must exceed X-nl-suspend-time-max sent to device
-    keepalive_timeout = int(settings.connection_hold_timeout) + 60  # Extra buffer
+    # aiohttp keepalive_timeout must exceed connection_hold_timeout so the HTTP
+    # server doesn't close idle connections before our hold loop finishes.
+    keepalive_timeout = int(settings.connection_hold_timeout) + 60
     proxy_runner = web.AppRunner(proxy_app, keepalive_timeout=keepalive_timeout)
     control_runner = web.AppRunner(control_app)
 
