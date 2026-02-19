@@ -63,12 +63,13 @@ class Settings(BaseSettings):
         description="Maximum concurrent subscriptions per device",
     )
     suspend_time_max: int = Field(
-        default=600,
+        default=300,
         ge=5,
-        le=900,
-        description="Maximum time (seconds) device will sleep before waking to resubscribe. "
-        "This is a FALLBACK timer - server push wakes device instantly. "
-        "Higher values = better battery life. Recommended: 600 seconds (10 minutes).",
+        le=350,
+        description="Maximum time (seconds) device may sleep before its safety-net wake timer fires. "
+        "The server closes the connection BEFORE this to drive the subscribe cycle. "
+        "Must not exceed ~350s due to WiFi keepalive probe timeout constraints. "
+        "Recommended: 300 seconds.",
     )
     defer_device_window: int = Field(
         default=15,
@@ -168,16 +169,18 @@ class Settings(BaseSettings):
 
     @property
     def connection_hold_timeout(self) -> float:
-        """Maximum time to hold a chunked connection open.
+        """Maximum time to hold a chunked subscribe connection open before closing it.
 
-        This should be LONGER than suspend_time_max because:
-        1. Server should never close the connection before device wake timer fires
-        2. Device wakes at suspend_time_max and resubscribes
-        3. If server closes early, device loses the connection unnecessarily
+        The server closing the connection drives the subscribe cycle:
+        1. Server closes → WoWLAN wakes device → device resubscribes
+        2. Device's wake timer at suspend_time_max is only a safety net
 
-        The +60 buffer accounts for network latency and clock skew.
+        Must be shorter than BOTH:
+        - suspend_time_max (so the server closes before the safety-net timer)
+        - ~350s (WiFi keepalive probe timeout — exceeding this causes overlapping
+          subscriptions as the device resubscribes without closing the old connection)
         """
-        return float(self.suspend_time_max + 60)
+        return float(self.suspend_time_max - 10)
 
     @property
     def data_dir(self) -> Path:

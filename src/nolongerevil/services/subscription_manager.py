@@ -106,10 +106,24 @@ class SubscriptionManager:
                     f"{subscription.id} for {serial}"
                 )
 
+            total = len(self._long_poll_subscriptions[serial])
             logger.debug(
                 f"Added subscription {subscription.id} for {serial} "
-                f"(session={session_id}, total={len(self._long_poll_subscriptions[serial])})"
+                f"(session={session_id}, total={total})"
             )
+
+            # Detect stale connections: if total > 1, previous subscribe connections
+            # are still being held open but the device has already reconnected —
+            # meaning those connections died silently (e.g. NAT dropped them).
+            if total > 1:
+                now = datetime.now()
+                for old_id, old_sub in self._long_poll_subscriptions[serial].items():
+                    if old_id != subscription.id:
+                        age = (now - old_sub.created_at).total_seconds()
+                        logger.warning(
+                            f"Stale subscription {old_id} for {serial}: "
+                            f"held for {age:.0f}s before device reconnected"
+                        )
 
             return subscription
 
