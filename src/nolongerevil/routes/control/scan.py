@@ -52,7 +52,7 @@ async def probe_nest(
     return None
 
 
-async def handle_scan_network(request: web.Request) -> web.Response:
+async def handle_scan_network(_request: web.Request) -> web.Response:
     """Handle POST /api/scan-network — scan the /24 subnet for Nest devices.
 
     Derives the subnet from settings.api_origin and concurrently probes all
@@ -120,26 +120,28 @@ async def handle_configure_nest(request: web.Request) -> web.Response:
 
     timeout = aiohttp.ClientTimeout(total=5)
     try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(url, json=payload) as resp:
-                data = await resp.json(content_type=None)
-                if resp.status == 200:
-                    logger.info(f"Configured {ip}: {data.get('device_name')}")
-                    return web.json_response(
-                        {"success": True, "device_name": data.get("device_name")}
-                    )
-                elif resp.status == 401:
-                    return web.json_response(
-                        {"success": False, "auth_required": True}, status=401
-                    )
-                else:
-                    return web.json_response(
-                        {
-                            "success": False,
-                            "error": data.get("status", "Unknown error"),
-                        },
-                        status=resp.status,
-                    )
+        async with (
+            aiohttp.ClientSession(timeout=timeout) as session,
+            session.post(url, json=payload) as resp,
+        ):
+            data = await resp.json(content_type=None)
+            if resp.status == 200:
+                logger.info(f"Configured {ip}: {data.get('device_name')}")
+                return web.json_response(
+                    {"success": True, "device_name": data.get("device_name")}
+                )
+            elif resp.status == 401:
+                return web.json_response(
+                    {"success": False, "auth_required": True}, status=401
+                )
+            else:
+                return web.json_response(
+                    {
+                        "success": False,
+                        "error": data.get("status", "Unknown error"),
+                    },
+                    status=resp.status,
+                )
     except aiohttp.ClientError as exc:
         logger.warning(f"Failed to configure Nest at {ip}: {exc}")
         return web.json_response(

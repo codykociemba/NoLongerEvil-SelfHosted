@@ -10,9 +10,9 @@ class TestSettings:
         """Test default configuration values."""
         settings = Settings()
 
-        assert settings.api_origin == "http://localhost"
-        assert settings.server_port == 443
-        assert settings.control_port == 8081
+        assert settings.api_origin == "http://localhost:8000"
+        assert settings.server_port == 8000
+        assert settings.control_port == 8082
         assert settings.entry_key_ttl_seconds == 3600
         assert settings.weather_cache_ttl_ms == 600000
         assert settings.max_subscriptions_per_device == 100
