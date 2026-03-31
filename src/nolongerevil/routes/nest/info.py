@@ -1,5 +1,6 @@
 """Provisioning info endpoint - server discovery for Nest thermostats."""
 
+import socket
 from urllib.parse import urlparse
 
 from aiohttp import web
@@ -34,7 +35,15 @@ async def handle_info(_request: web.Request) -> web.Response:
     parsed = urlparse(settings.api_origin)
     ssl = parsed.scheme == "https"
     port = parsed.port or (443 if ssl else 80)
-    ip = parsed.hostname or ""
+    hostname = parsed.hostname or ""
+    try:
+        socket.inet_aton(hostname)
+        ip = hostname
+    except OSError:
+        try:
+            ip = socket.gethostbyname(hostname)
+        except socket.gaierror:
+            ip = hostname
 
     return web.json_response(
         {

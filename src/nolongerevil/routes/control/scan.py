@@ -2,6 +2,7 @@
 
 import asyncio
 import ipaddress
+import socket
 from urllib.parse import urlparse
 
 import aiohttp
@@ -67,6 +68,18 @@ async def handle_scan_network(_request: web.Request) -> web.Response:
             return web.json_response(
                 {"error": "Cannot derive subnet: api_origin has no hostname"}, status=400
             )
+        try:
+            ipaddress.ip_address(host_ip)
+        except ValueError:
+            try:
+                host_ip = socket.gethostbyname(host_ip)
+            except socket.gaierror:
+                return web.json_response(
+                    {
+                        "error": f"Cannot resolve '{host_ip}' to an IP address. Set api_origin to use an IP address instead of a hostname."
+                    },
+                    status=400,
+                )
         network = ipaddress.IPv4Network(f"{host_ip}/24", strict=False)
     except (ValueError, TypeError) as exc:
         return web.json_response({"error": f"Invalid api_origin: {exc}"}, status=400)

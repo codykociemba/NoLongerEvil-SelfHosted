@@ -631,7 +631,7 @@
         </button>
         <div id="scanResultsSetup" style="display: none;" class="scan-panel"></div>
       </div>
-      <div id="registerSection" style="display:none">
+      <div id="registerSection" style="display:none;margin-top:20px;">
         <h2>Register Device</h2>
         <ol>
           <li>On your Nest thermostat, go to <strong>Settings &rarr; Nest App</strong></li>
@@ -1332,7 +1332,7 @@
       const el = document.getElementById('deviceList');
       if (!devices.length) {
         const ingressPath = document.body.dataset.ingressPath || '';
-        el.innerHTML = '<div class="empty-state"><img src="' + ingressPath + '/nle-icon.png" alt="No Longer Evil">No devices yet.<br>Click \u201cAdd a new device\u201d to get started.<br><br><button class="btn-scan" onclick="scanDevices(\'scanResultsEmpty\')"><i class="mdi mdi-radar"></i> Scan for Nest Devices</button><div id="scanResultsEmpty" style="display:none;text-align:left;margin-top:12px;"></div></div>';
+        el.innerHTML = '<div class="empty-state"><img src="' + ingressPath + '/nle-icon.png" alt="No Longer Evil">No devices yet.<br>Click \u201cAdd a new device\u201d to get started.<br><br><button class="btn-scan" onclick="scanDevices(\'scanResultsEmpty\')"><i class="mdi mdi-radar"></i> Scan for Nest Devices</button><div id="scanResultsEmpty" style="display:none;text-align:center;margin-top:12px;"></div></div>';
         return;
       }
       el.innerHTML = '<div class="devices">' + devices.map(d => {
@@ -1545,7 +1545,7 @@
       const container = document.getElementById(containerId);
       if (!container) return;
       container.style.display = '';
-      container.innerHTML = '<p style="color:var(--text2);font-size:13px;display:flex;align-items:center;gap:6px"><i class="mdi mdi-loading mdi-spin"></i> Scanning network...</p>';
+      container.innerHTML = '<p style="color:var(--text2);font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px"><i class="mdi mdi-loading mdi-spin"></i> Scanning network...</p>';
       // Disable all scan buttons while running
       document.querySelectorAll('.btn-scan').forEach(function(b) { b.disabled = true; });
       try {
@@ -1569,7 +1569,7 @@
     function renderScanResults(container, data) {
       const devices = data.devices || [];
       if (!devices.length) {
-        container.innerHTML = '<p style="color:var(--text2);font-size:13px;">No Nest devices found on ' + esc(data.subnet) + '.</p>';
+        container.innerHTML = '<p style="color:var(--text2);font-size:13px;text-align:center;">No Nest devices found on ' + esc(data.subnet) + '.</p>';
         return;
       }
       container.innerHTML =
