@@ -27,7 +27,24 @@ A self-hosted server implementation for Nest thermostats, written in Python. Thi
 
 ## Quick Start
 
-### Using Docker Compose (Recommended)
+### Pull from GitHub Container Registry (Easiest)
+
+Pre-built images are published to `ghcr.io/codykociemba/nolongerevil-selfhosted` for every release. No build step required, works great on Unraid, TrueNAS, Portainer, or any Docker host.
+
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -p 8082:8082 \
+  -e API_ORIGIN=http://YOUR_SERVER_IP:8000 \
+  -v nolongerevil-data:/data \
+  ghcr.io/codykociemba/nolongerevil-selfhosted:latest
+```
+
+> Replace `YOUR_SERVER_IP` with the LAN IP of the machine running the container. Do not use `localhost` as Nest devices need a reachable IP.
+
+**Unraid / TrueNAS / Portainer users:** Use the image `ghcr.io/codykociemba/nolongerevil-selfhosted:latest`, map host ports `8000` and `8082`, set the `API_ORIGIN` environment variable, and mount a volume to `/data` for persistence.
+
+### Using Docker Compose
 
 1. Clone the repository:
    ```bash
@@ -85,7 +102,7 @@ For **Docker Compose**, edit the `environment:` block in `docker-compose.yml`. F
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_ORIGIN` | `http://localhost:8000` | Base URL for thermostat connections — set to your LAN IP, e.g. `http://192.168.1.100:8000` |
+| `API_ORIGIN` | `http://localhost:8000` | Base URL for thermostat connections. Set to your LAN IP, e.g. `http://192.168.1.100:8000` |
 | `SERVER_PORT` | `8000` | Port for thermostat connections |
 | `CONTROL_PORT` | `8082` | Port for control API |
 | `CERT_DIR` | - | Directory containing TLS certificates |
@@ -210,7 +227,18 @@ climate:
 
 ### Docker
 
-Build and run the Docker image:
+Pull and run the pre-built image:
+
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -p 8082:8082 \
+  -e API_ORIGIN=http://192.168.1.100:8000 \
+  -v nolongerevil-data:/data \
+  ghcr.io/codykociemba/nolongerevil-selfhosted:latest
+```
+
+To build locally instead:
 
 ```bash
 docker build -t nolongerevil-server .

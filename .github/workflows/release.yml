@@ -78,8 +78,9 @@ jobs:
 
             ```bash
             docker run -d \
-              -p 7001:80 \
-              -p 8081:8081 \
-              -v nolongerevil-data:/app/data \
+              -p 8000:8000 \
+              -p 8082:8082 \
+              -e API_ORIGIN=http://YOUR_SERVER_IP:8000 \
+              -v nolongerevil-data:/data \
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
             ```
