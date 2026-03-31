@@ -537,6 +537,7 @@ def get_all_discovery_configs(
         List of (topic, payload) tuples for all entities
     """
     device_name = get_device_name(device_values, shared_values, serial)
+    has_fan = shared_values.get("has_fan", device_values.get("has_fan", False))
     configs = []
 
     # Climate entity (main thermostat control) - mode-aware for temperature topics
@@ -567,9 +568,10 @@ def get_all_discovery_configs(
     configs.append((occupancy_topic, occupancy_payload))
 
     # Fan binary sensor
-    fan_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/fan/config"
-    fan_payload = build_fan_binary_sensor_discovery(serial, topic_prefix)
-    configs.append((fan_topic, fan_payload))
+    if has_fan:
+        fan_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/fan/config"
+        fan_payload = build_fan_binary_sensor_discovery(serial, topic_prefix)
+        configs.append((fan_topic, fan_payload))
 
     # Leaf (eco) binary sensor
     leaf_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/leaf/config"
@@ -631,14 +633,16 @@ def get_all_discovery_configs(
     configs.append((local_ip_topic, local_ip_payload))
 
     # Fan timer remaining sensor
-    fan_timer_topic = f"{discovery_prefix}/sensor/nest_{serial}/fan_timer_remaining/config"
-    fan_timer_payload = build_fan_timer_remaining_sensor_discovery(serial, topic_prefix)
-    configs.append((fan_timer_topic, fan_timer_payload))
+    if has_fan:
+        fan_timer_topic = f"{discovery_prefix}/sensor/nest_{serial}/fan_timer_remaining/config"
+        fan_timer_payload = build_fan_timer_remaining_sensor_discovery(serial, topic_prefix)
+        configs.append((fan_timer_topic, fan_timer_payload))
 
     # Fan duration number entity
-    fan_duration_topic = f"{discovery_prefix}/number/nest_{serial}/fan_duration/config"
-    fan_duration_payload = build_fan_duration_number_discovery(serial, topic_prefix)
-    configs.append((fan_duration_topic, fan_duration_payload))
+    if has_fan:
+        fan_duration_topic = f"{discovery_prefix}/number/nest_{serial}/fan_duration/config"
+        fan_duration_payload = build_fan_duration_number_discovery(serial, topic_prefix)
+        configs.append((fan_duration_topic, fan_duration_payload))
 
     return configs
 
