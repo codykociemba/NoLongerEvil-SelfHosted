@@ -13,9 +13,7 @@ from nolongerevil.lib.logger import get_logger
 logger = get_logger(__name__)
 
 
-async def probe_nest(
-    session: aiohttp.ClientSession, ip: str, our_origin: str
-) -> dict | None:
+async def probe_nest(session: aiohttp.ClientSession, ip: str, our_origin: str) -> dict | None:
     """Probe a single IP for a Nest local API endpoint on port 8080.
 
     Args:
@@ -35,6 +33,7 @@ async def probe_nest(
                 # Device may append a path (e.g. /entry) to the URL it stores;
                 # compare by stripping any path so we match on origin only.
                 from urllib.parse import urlparse as _up
+
                 cloud_parsed = _up(cloud_url)
                 our_parsed = _up(our_origin)
                 configured = (
@@ -127,13 +126,9 @@ async def handle_configure_nest(request: web.Request) -> web.Response:
             data = await resp.json(content_type=None)
             if resp.status == 200:
                 logger.info(f"Configured {ip}: {data.get('device_name')}")
-                return web.json_response(
-                    {"success": True, "device_name": data.get("device_name")}
-                )
+                return web.json_response({"success": True, "device_name": data.get("device_name")})
             elif resp.status == 401:
-                return web.json_response(
-                    {"success": False, "auth_required": True}, status=401
-                )
+                return web.json_response({"success": False, "auth_required": True}, status=401)
             else:
                 return web.json_response(
                     {
