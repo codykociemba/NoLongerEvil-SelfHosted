@@ -152,7 +152,7 @@ def extract_serial_from_session(session_id: str, mac: str) -> str | None:
         mac: MAC address of the device (with or without colons)
 
     Returns:
-        Extracted serial (preserving original case) or None if not found
+        Sanitized serial (uppercase, alphanumeric only) or None if not found/invalid
     """
     if not session_id or not mac:
         return None
@@ -160,8 +160,7 @@ def extract_serial_from_session(session_id: str, mac: str) -> str | None:
     if len(mac_clean) != 12:
         return None
     if session_id.lower().startswith(mac_clean):
-        serial = session_id[len(mac_clean):]
-        return serial if serial else None
+        return sanitize_serial(session_id[len(mac_clean):])
     return None
 
 

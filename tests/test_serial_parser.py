@@ -121,3 +121,24 @@ class TestExtractSerialFromSession:
     def test_empty_mac(self):
         """Empty MAC yields None."""
         assert extract_serial_from_session(self.MAC + self.SERIAL, "") is None
+
+    def test_extracted_serial_is_uppercased(self):
+        """A lowercase suffix is normalized to uppercase, like other serial sources."""
+        session_id = self.MAC + self.SERIAL.lower()
+        assert extract_serial_from_session(session_id, self.MAC) == self.SERIAL
+
+    def test_extracted_serial_strips_invalid_characters(self):
+        """Non-alphanumeric characters (e.g. path separators) are stripped so
+        the result can't be used to escape state keys / MQTT topic paths."""
+        session_id = self.MAC + "02AA01/../AB501203EQ"
+        assert extract_serial_from_session(session_id, self.MAC) == self.SERIAL
+
+    def test_extracted_serial_too_short_after_sanitization(self):
+        """If sanitization leaves fewer than MIN_SERIAL_LENGTH chars, yields None."""
+        session_id = self.MAC + "../.."
+        assert extract_serial_from_session(session_id, self.MAC) is None
+
+    def test_extracted_serial_all_invalid_characters(self):
+        """A suffix made entirely of separators yields None, not an empty serial."""
+        session_id = self.MAC + "////////////"
+        assert extract_serial_from_session(session_id, self.MAC) is None

@@ -357,7 +357,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
         if extracted:
             logger.debug(f"Resolved MAC-only device {serial} to serial {extracted} via session ID")
             mac_alias = serial.lower()
-            real_serial = extracted.upper()
+            real_serial = extracted
             request.app["mac_to_serial"][mac_alias] = real_serial
             serial = real_serial
             # Persist MAC->serial mapping so PUT handler survives restarts
