@@ -83,6 +83,27 @@ class DeviceStateService:
         """
         return list(self._cache.get(serial, {}).values())
 
+    def get_object_by_prefix(self, serial: str, prefix: str) -> DeviceObject | None:
+        """Get a device's object whose object_key starts with `prefix`.
+
+        MAC-alias migration rewrites object_keys using the device's own
+        (lowercase) serial, e.g. "schedule.<serial-lower>", while some
+        buckets are conventionally addressed with "<bucket>.<SERIAL>"
+        (uppercase). Matching by prefix instead of an exact key finds the
+        bucket regardless of which casing it was stored under.
+
+        Args:
+            serial: Device serial number
+            prefix: object_key prefix to match (e.g. "schedule.")
+
+        Returns:
+            First matching device object, or None if not found
+        """
+        for obj in self._cache.get(serial, {}).values():
+            if obj.object_key.startswith(prefix):
+                return obj
+        return None
+
     def get_all_objects(self) -> list[DeviceObject]:
         """Get all device objects from cache.
 
