@@ -11,12 +11,18 @@ import json
 import time
 from base64 import b64encode
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 from aiohttp import web
 
-from nolongerevil.lib.types import DeviceObject
+from nolongerevil.config.environment import settings
+from nolongerevil.lib.types import DeviceObject, DeviceOwner
+from nolongerevil.middleware.device_auth import (
+    TIER_PAIRED,
+    TIER_UNKNOWN,
+    create_device_auth_middleware,
+)
 from nolongerevil.middleware.device_heartbeat import create_device_heartbeat_middleware
 from nolongerevil.routes.nest.transport import handle_transport_put, handle_transport_subscribe
 from nolongerevil.services.device_availability import DeviceAvailability
@@ -356,3 +362,139 @@ async def test_heartbeat_middleware_without_mapping_uses_request_serial(
     await middleware(req, handler)
 
     assert device_availability.get_last_seen(REAL_SERIAL) is not None
+
+
+# ---------------------------------------------------------------------------
+# device_auth middleware: resolves MAC aliases before owner/entry-key checks
+#
+# Devices like Display-2.12 authenticate with their MAC on every request, not
+# just the first /subscribe. If device_auth doesn't resolve the alias, a
+# device that's actually paired (under its real serial) looks unknown on
+# every gated request and gets a 401.
+# ---------------------------------------------------------------------------
+
+
+def _make_device_auth_request(
+    state_service: DeviceStateService,
+    mac_to_serial: dict[str, str],
+    storage: Mock,
+    auth_serial: str,
+) -> tuple[MagicMock, dict]:
+    """Build a mock aiohttp request for device_auth_middleware.
+
+    Returns the request mock plus a plain dict backing request[...] storage,
+    since MagicMock's __setitem__ doesn't persist values by default.
+    """
+    req = MagicMock(spec=web.Request)
+    req.headers = {"Authorization": _auth_header(auth_serial)}
+    req.path = "/nest/transport"
+    req.method = "POST"
+    req.app = {
+        "state_service": state_service,
+        "mac_to_serial": mac_to_serial,
+        "storage": storage,
+    }
+    req_state: dict = {}
+    req.__setitem__.side_effect = req_state.__setitem__
+    req.__getitem__.side_effect = req_state.__getitem__
+    return req, req_state
+
+
+def _make_storage(owner_serial: str | None) -> Mock:
+    """Mock SQLModelService that recognizes `owner_serial` as paired (if set)."""
+    storage = Mock()
+    owner = (
+        DeviceOwner(serial=owner_serial, user_id="user-1", created_at=datetime.now())
+        if owner_serial
+        else None
+    )
+    storage.get_device_owner = AsyncMock(
+        side_effect=lambda serial: owner if owner_serial and serial == owner_serial else None
+    )
+    storage.get_entry_key_by_serial = AsyncMock(return_value=None)
+    return storage
+
+
+@pytest.mark.asyncio
+async def test_device_auth_resolves_mac_via_persisted_mapping(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A device paired under its real serial, but authenticating via MAC,
+    must pass auth using the persisted mac_alias mapping (no in-memory cache
+    yet — e.g. right after a server restart, before /subscribe runs again)."""
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+
+    await state_service.upsert_object(
+        DeviceObject(
+            serial=f"mac_alias.{MAC_LOWER}",
+            object_key="mac_alias",
+            object_revision=1,
+            object_timestamp=int(time.time() * 1000),
+            value={"serial": REAL_SERIAL},
+            updated_at=datetime.now(),
+        )
+    )
+
+    mac_to_serial: dict[str, str] = {}
+    storage = _make_storage(owner_serial=REAL_SERIAL)
+    req, req_state = _make_device_auth_request(state_service, mac_to_serial, storage, MAC)
+    handler = AsyncMock(return_value=web.Response(text="ok"))
+
+    middleware = create_device_auth_middleware()
+    resp = await middleware(req, handler)
+
+    handler.assert_awaited_once()
+    assert resp.status == 200
+    assert req_state["device_serial"] == REAL_SERIAL
+    assert req_state["device_auth_tier"] == TIER_PAIRED
+
+    # Cache is warmed so the heartbeat middleware (which runs after this one)
+    # also tracks the resolved serial.
+    assert mac_to_serial[MAC_LOWER] == REAL_SERIAL
+
+
+@pytest.mark.asyncio
+async def test_device_auth_resolves_mac_via_in_memory_cache(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Once the in-memory mapping is warm, paired MAC devices pass auth on
+    subsequent requests without a 401."""
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+
+    mac_to_serial = {MAC_LOWER: REAL_SERIAL}
+    storage = _make_storage(owner_serial=REAL_SERIAL)
+    req, req_state = _make_device_auth_request(state_service, mac_to_serial, storage, MAC)
+    handler = AsyncMock(return_value=web.Response(text="ok"))
+
+    middleware = create_device_auth_middleware()
+    resp = await middleware(req, handler)
+
+    handler.assert_awaited_once()
+    assert resp.status == 200
+    assert req_state["device_serial"] == REAL_SERIAL
+    assert req_state["device_auth_tier"] == TIER_PAIRED
+
+
+@pytest.mark.asyncio
+async def test_device_auth_unmapped_mac_with_no_owner_is_unknown(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """True first contact (no mapping yet, no owner/entry-key under the MAC)
+    is still rejected — resolution can't invent a mapping out of nothing."""
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+
+    mac_to_serial: dict[str, str] = {}
+    storage = _make_storage(owner_serial=None)
+    req, req_state = _make_device_auth_request(state_service, mac_to_serial, storage, MAC)
+    handler = AsyncMock(return_value=web.Response(text="ok"))
+
+    middleware = create_device_auth_middleware()
+    resp = await middleware(req, handler)
+
+    handler.assert_not_awaited()
+    assert resp.status == 401
+    assert req_state["device_serial"] == MAC
+    assert req_state["device_auth_tier"] == TIER_UNKNOWN

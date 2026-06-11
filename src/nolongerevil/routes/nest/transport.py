@@ -53,12 +53,12 @@ import json
 import time
 from datetime import datetime
 from typing import Any
-import re
 
 from aiohttp import web
 
 from nolongerevil.config.environment import settings
 from nolongerevil.lib.logger import get_logger
+from nolongerevil.lib.mac_alias import looks_like_mac_serial, resolve_mac_alias
 from nolongerevil.lib.serial_parser import extract_serial_from_request, extract_serial_from_session, extract_weave_device_id
 from nolongerevil.lib.types import DeviceObject
 from nolongerevil.services.device_availability import DeviceAvailability
@@ -352,7 +352,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     # Some devices (e.g. Display-2.12) only send their MAC at entry time.
     # Their session ID is <mac><serial>, so extract the real serial from it.
     mac_alias = None
-    if session and len(serial) == 12 and re.match(r'^[0-9A-F]{12}$', serial):
+    if session and looks_like_mac_serial(serial):
         extracted = extract_serial_from_session(session, serial)
         if extracted:
             logger.debug(f"Resolved MAC-only device {serial} to serial {extracted} via session ID")
@@ -867,24 +867,10 @@ async def handle_transport_put(request: web.Request) -> web.Response:
     if not serial:
         return web.json_response({"error": "Device serial required"}, status=400)
 
-    state_service: DeviceStateService = request.app["state_service"]  # moved up
+    state_service: DeviceStateService = request.app["state_service"]
 
     # Resolve MAC-only devices to their real serial
-    mac_alias = None
-    if len(serial) == 12 and re.match(r'^[0-9A-F]{12}$', serial):
-        mac_lower = serial.lower()
-        # Try in-memory cache first
-        real_serial = request.app["mac_to_serial"].get(mac_lower)
-        if not real_serial:
-            # Fall back to persistent mapping in database
-            mapping_obj = state_service.get_object(f"mac_alias.{mac_lower}", "mac_alias")
-            if mapping_obj:
-                real_serial = mapping_obj.value.get("serial")
-                if real_serial:
-                    request.app["mac_to_serial"][mac_lower] = real_serial
-        if real_serial:
-            mac_alias = mac_lower
-            serial = real_serial
+    serial, mac_alias = resolve_mac_alias(request, serial)
 
     try:
         body = await request.json()
