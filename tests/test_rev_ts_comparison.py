@@ -7,7 +7,6 @@ Per the protocol spec (docs/protocol/server-rev-ts-guide.md):
 - Equal timestamps = already synced, no action needed
 """
 
-import pytest
 
 from nolongerevil.routes.nest.transport import _is_server_newer
 
