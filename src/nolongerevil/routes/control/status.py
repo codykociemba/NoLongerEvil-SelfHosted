@@ -125,6 +125,9 @@ def format_device_status(
         "preconditioning_enabled": device_values.get("preconditioning_enabled"),
         # Backplate (device bucket)
         "backplate_temperature": device_values.get("backplate_temperature"),
+        # Network (device bucket — PUT by the thermostat firmware on every state change)
+        "local_ip": device_values.get("local_ip"),
+        "mac_address": device_values.get("mac_address"),
     }
 
     # Add shared/structure info

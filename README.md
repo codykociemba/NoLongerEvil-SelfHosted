@@ -112,8 +112,12 @@ For **Docker Compose**, edit the `environment:` block in `docker-compose.yml`. F
 | `MAX_SUBSCRIPTIONS_PER_DEVICE` | `100` | Max concurrent subscriptions |
 | `SUSPEND_TIME_MAX` | `600` | Device sleep duration before fallback wake (seconds) |
 | `DEFER_DEVICE_WINDOW` | `15` | Delay before device sends updates after local changes (seconds) |
-| `DEBUG_LOGGING` | `false` | Enable debug logging |
 | `SQLITE3_DB_PATH` | `./data/database.sqlite` | Database file path |
+| `DEBUG_LOGGING` | `false` | Enable detailed request/response logging |
+| `DEBUG_LOGS_DIR` | `./data/debug-logs` | Directory for debug log files |
+| `STORE_DEVICE_LOGS` | `false` | Store uploaded device logs to disk |
+| `DEVICE_LOGS_DIR` | `./data/device-logs` | Directory for device log files |
+
 
 ### MQTT Configuration (Optional)
 

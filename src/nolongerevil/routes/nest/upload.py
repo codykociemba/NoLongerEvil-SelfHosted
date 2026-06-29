@@ -12,8 +12,6 @@ from nolongerevil.lib.serial_parser import extract_serial_from_request
 
 logger = get_logger(__name__)
 
-LOG_STORAGE_PATH = Path("/app/data/device_logs")
-
 
 async def handle_upload(request: web.Request) -> web.Response:
     """Handle device log file upload.
@@ -29,7 +27,7 @@ async def handle_upload(request: web.Request) -> web.Response:
         logger.info(f"Received log upload from device {serial or 'unknown'}: {size} bytes")
 
         if settings.store_device_logs:
-            device_dir = LOG_STORAGE_PATH / (serial or "unknown")
+            device_dir = Path(settings.device_logs_dir) / (serial or "unknown")
             device_dir.mkdir(parents=True, exist_ok=True)
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
