@@ -36,8 +36,8 @@ def format_device_status(
     Returns:
         Device status dictionary
     """
-    device_obj = state_service.get_object(serial, f"device.{serial}")
-    shared_obj = state_service.get_object(serial, f"shared.{serial}")
+    device_obj = state_service.get_object(serial, f"device.{serial.lower()}")
+    shared_obj = state_service.get_object(serial, f"shared.{serial.lower()}")
 
     device_values = device_obj.value if device_obj else {}
     shared_values = shared_obj.value if shared_obj else {}
@@ -217,7 +217,7 @@ async def handle_schedule(request: web.Request) -> web.Response:
         )
 
     state_service: DeviceStateService = request.app["state_service"]
-    schedule_obj = state_service.get_object(serial, f"schedule.{serial}")
+    schedule_obj = state_service.get_object_by_prefix(serial, "schedule.")
 
     if not schedule_obj:
         return web.json_response({"serial": serial, "schedule": None})

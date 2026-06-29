@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from nolongerevil.lib.logger import get_logger
+from nolongerevil.lib.mac_alias import MAC_ALIAS_SERIAL_PREFIX
 from nolongerevil.lib.types import DeviceObject, DeviceStateChange
 
 if TYPE_CHECKING:
@@ -82,6 +83,27 @@ class DeviceStateService:
         """
         return list(self._cache.get(serial, {}).values())
 
+    def get_object_by_prefix(self, serial: str, prefix: str) -> DeviceObject | None:
+        """Get a device's object whose object_key starts with `prefix`.
+
+        MAC-alias migration rewrites object_keys using the device's own
+        (lowercase) serial, e.g. "schedule.<serial-lower>", while some
+        buckets are conventionally addressed with "<bucket>.<SERIAL>"
+        (uppercase). Matching by prefix instead of an exact key finds the
+        bucket regardless of which casing it was stored under.
+
+        Args:
+            serial: Device serial number
+            prefix: object_key prefix to match (e.g. "schedule.")
+
+        Returns:
+            First matching device object, or None if not found
+        """
+        for obj in self._cache.get(serial, {}).values():
+            if obj.object_key.startswith(prefix):
+                return obj
+        return None
+
     def get_all_objects(self) -> list[DeviceObject]:
         """Get all device objects from cache.
 
@@ -96,10 +118,13 @@ class DeviceStateService:
     def get_all_serials(self) -> list[str]:
         """Get all known device serials.
 
+        Excludes internal "mac_alias.<mac>" bookkeeping records, which aren't
+        real devices.
+
         Returns:
             List of device serial numbers
         """
-        return list(self._cache.keys())
+        return [s for s in self._cache.keys() if not s.startswith(MAC_ALIAS_SERIAL_PREFIX)]
 
     async def delete_device(self, serial: str) -> int:
         """Delete all objects for a device.

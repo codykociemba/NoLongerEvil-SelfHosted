@@ -71,8 +71,8 @@ async def set_temperature(
     Returns:
         Updated values
     """
-    device_obj = state_service.get_object(serial, f"device.{serial}")
-    shared_obj = state_service.get_object(serial, f"shared.{serial}")
+    device_obj = state_service.get_object_by_prefix(serial, "device.")
+    shared_obj = state_service.get_object_by_prefix(serial, "shared.")
 
     bounds = get_safety_bounds(
         device_obj.value if device_obj else None,
@@ -135,8 +135,8 @@ async def set_mode(
         )
 
     # Validate device capabilities
-    device_obj = state_service.get_object(serial, f"device.{serial}")
-    shared_obj = state_service.get_object(serial, f"shared.{serial}")
+    device_obj = state_service.get_object_by_prefix(serial, "device.")
+    shared_obj = state_service.get_object_by_prefix(serial, "shared.")
     if device_obj or shared_obj:
         dv = device_obj.value if device_obj else {}
         sv = shared_obj.value if shared_obj else {}
@@ -196,8 +196,8 @@ async def set_fan(
     Returns:
         Updated values
     """
-    device_obj = state_service.get_object(serial, f"device.{serial}")
-    shared_obj = state_service.get_object(serial, f"shared.{serial}")
+    device_obj = state_service.get_object_by_prefix(serial, "device.")
+    shared_obj = state_service.get_object_by_prefix(serial, "shared.")
     dv = device_obj.value if device_obj else {}
     sv = shared_obj.value if shared_obj else {}
     if not sv.get("has_fan", dv.get("has_fan", False)):
@@ -242,8 +242,8 @@ async def set_eco_temperatures(
     if "low" in value:
         values["away_temperature_low"] = float(value["low"])
 
-    device_obj = state_service.get_object(serial, f"device.{serial}")
-    shared_obj = state_service.get_object(serial, f"shared.{serial}")
+    device_obj = state_service.get_object_by_prefix(serial, "device.")
+    shared_obj = state_service.get_object_by_prefix(serial, "shared.")
     bounds = get_safety_bounds(
         device_obj.value if device_obj else None,
         shared_obj.value if shared_obj else None,
@@ -528,12 +528,13 @@ async def execute_command(
             if owner:
                 structure_id = derive_structure_id(owner.user_id)
         object_key = f"structure.{structure_id}"
-    elif key_type == "schedule":
-        object_key = f"schedule.{serial}"
-    elif key_type == "shared":
-        object_key = f"shared.{serial}"
     else:
-        object_key = f"device.{serial}"
+        # MAC-alias migration may have stored this device's buckets under
+        # "<bucket>.<serial-lower>" instead of "<bucket>.<SERIAL>" - find the
+        # existing object by prefix so we update it in place instead of
+        # creating a duplicate under a different casing.
+        existing = state_service.get_object_by_prefix(serial, f"{key_type}.")
+        object_key = existing.object_key if existing else f"{key_type}.{serial}"
 
     # Update state
     existing_obj = state_service.get_object(serial, object_key)

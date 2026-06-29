@@ -16,6 +16,7 @@ from aiohttp import web
 
 from nolongerevil.config.environment import settings
 from nolongerevil.lib.logger import get_logger
+from nolongerevil.lib.mac_alias import resolve_mac_alias
 from nolongerevil.lib.serial_parser import (
     extract_basic_auth_password,
     extract_serial_from_basic_auth,
@@ -96,6 +97,13 @@ def create_device_auth_middleware() -> Callable[
         serial = extract_serial_from_request(request)
         if not serial:
             return web.json_response({"error": "Device serial required"}, status=400)
+
+        # Resolve MAC-only devices (e.g. Display-2.12) to their real serial
+        # before checking ownership/entry-key. These devices authenticate
+        # with their MAC on every request, so without this a paired device
+        # would look unknown here and get a 401 on every request after the
+        # one that established the alias.
+        serial, _ = resolve_mac_alias(request, serial)
 
         request["device_serial"] = serial
 

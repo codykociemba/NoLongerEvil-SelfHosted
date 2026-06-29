@@ -141,6 +141,29 @@ def extract_serial_from_client_id(client_id: str | None) -> str | None:
     return sanitize_serial(client_id)
 
 
+def extract_serial_from_session(session_id: str, mac: str) -> str | None:
+    """Extract serial from session ID by stripping the MAC prefix.
+
+    Session IDs from some devices (e.g. Display-2.12) are formatted as
+    <mac><serial>, e.g. '11b2334455d602AA01AB501203EQ' where mac='11b2334455d6'.
+
+    Args:
+        session_id: Session ID string from subscribe body
+        mac: MAC address of the device (with or without colons)
+
+    Returns:
+        Sanitized serial (uppercase, alphanumeric only) or None if not found/invalid
+    """
+    if not session_id or not mac:
+        return None
+    mac_clean = mac.lower().replace(":", "")
+    if len(mac_clean) != 12:
+        return None
+    if session_id.lower().startswith(mac_clean):
+        return sanitize_serial(session_id[len(mac_clean):])
+    return None
+
+
 def extract_serial_from_request(request: web.Request) -> str | None:
     """Extract device serial from an aiohttp request.
 
