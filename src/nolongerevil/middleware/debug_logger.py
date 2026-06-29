@@ -80,11 +80,21 @@ def create_debug_logger_middleware() -> _MiddlewareType:
             response = await handler(request)
             elapsed = time.time() - start_time
 
+            body_content = None
+
+            if isinstance(response, web.Response) and response.body is not None:
+                    try:
+                        body_content = response.text if response.text else response.body.decode("utf-8", errors="replace")
+                    except Exception:
+                        body_content = str(response.body)
+
+
             # Capture response details
             response_data = {
                 "status": response.status,
                 "headers": dict(response.headers),
                 "elapsed_ms": round(elapsed * 1000, 2),
+                "body": body_content,
             }
 
             # Log to file

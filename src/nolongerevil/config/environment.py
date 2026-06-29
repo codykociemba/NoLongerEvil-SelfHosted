@@ -108,6 +108,10 @@ class Settings(BaseSettings):
         default=False,
         description="Store uploaded device logs to disk",
     )
+    device_logs_dir: str = Field(
+        default="./data/device-logs",
+        description="Directory for device log files",
+    )
 
     # Database configuration
     sqlite3_db_path: str = Field(
