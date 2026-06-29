@@ -259,8 +259,8 @@ class SubscriptionManager:
             return 0
 
         if isinstance(updated_objects[0], DeviceObject):
-            return await self.notify_subscribers_with_objects(serial, updated_objects)  # type: ignore
-        return await self.notify_subscribers_with_dicts(serial, updated_objects)  # type: ignore
+            return await self.notify_subscribers_with_objects(serial, updated_objects)
+        return await self.notify_subscribers_with_dicts(serial, updated_objects)
 
     # ========== Utility Methods ==========
 
