@@ -83,11 +83,14 @@ def create_debug_logger_middleware() -> _MiddlewareType:
             body_content = None
 
             if isinstance(response, web.Response) and response.body is not None:
-                    try:
-                        body_content = response.text if response.text else response.body.decode("utf-8", errors="replace")
-                    except Exception:
-                        body_content = str(response.body)
-
+                try:
+                    body_content = (
+                        response.text
+                        if response.text
+                        else response.body.decode("utf-8", errors="replace")
+                    )
+                except Exception:
+                    body_content = str(response.body)
 
             # Capture response details
             response_data = {
