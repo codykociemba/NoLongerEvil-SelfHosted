@@ -11,7 +11,8 @@ Outbound (device → MQTT):
   exposes)
 
 Inbound (MQTT → device):
-- Subscribes to two command topic patterns:
+- Subscribes to three command topic patterns:
+    {prefix}/+/+/set       — atomic raw bucket writes (e.g., .../device/set)
     {prefix}/+/+/+/set     — raw field writes (e.g., .../shared/target_temperature/set)
     {prefix}/+/ha/+/set    — HA-native commands (e.g., .../ha/mode/set)
 - Dispatches commands via execute_command() from command.py, which merges
@@ -187,7 +188,9 @@ class MqttIntegration(BaseIntegration):
 
         # Raw command topics
         if self._publish_raw:
+            await client.subscribe(f"{prefix}/+/+/set")
             await client.subscribe(f"{prefix}/+/+/+/set")
+            logger.debug(f"Subscribed to {prefix}/+/+/set")
             logger.debug(f"Subscribed to {prefix}/+/+/+/set")
 
         # HA command topics
@@ -354,26 +357,41 @@ class MqttIntegration(BaseIntegration):
             await self._publish_ha_state(self._active_client, serial)
 
     async def _handle_raw_command(self, topic: str, payload: str) -> None:
-        """Handle raw MQTT command."""
+        """Handle an atomic bucket or legacy single-field raw MQTT command."""
         prefix = self._topic_prefix
         escaped_prefix = re.escape(prefix)
-        match = re.match(rf"^{escaped_prefix}/([^/]+)/([^/]+)/([^/]+)/set$", topic)
-        if not match:
+        field_match = re.match(rf"^{escaped_prefix}/([^/]+)/([^/]+)/([^/]+)/set$", topic)
+        bucket_match = re.match(rf"^{escaped_prefix}/([^/]+)/([^/]+)/set$", topic)
+        if not field_match and not bucket_match:
             return
 
-        serial, object_type, field = match.groups()
+        if field_match:
+            serial, object_type, field = field_match.groups()
+            value: Any = payload
+            try:
+                value = json.loads(payload)
+            except json.JSONDecodeError:
+                with contextlib.suppress(ValueError):
+                    value = float(payload)
+            values = {field: value}
+            command_description = f"{object_type}.{field} = {value}"
+        else:
+            assert bucket_match is not None
+            serial, object_type = bucket_match.groups()
+            try:
+                parsed_payload = json.loads(payload)
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid raw bucket JSON for {serial}/{object_type}")
+                return
+            if not isinstance(parsed_payload, dict) or not parsed_payload:
+                logger.warning(
+                    f"Raw bucket command for {serial}/{object_type} must be a non-empty object"
+                )
+                return
+            values = parsed_payload
+            command_description = f"{object_type} = {values}"
 
-        # Parse value
-        value: Any = payload
-        try:
-            value = json.loads(payload)
-        except json.JSONDecodeError:
-            import contextlib
-
-            with contextlib.suppress(ValueError):
-                value = float(payload)
-
-        logger.info(f"Raw Command: {serial}/{object_type}.{field} = {value}")
+        logger.info(f"Raw Command: {serial}/{command_description}")
 
         from datetime import datetime
 
@@ -386,7 +404,7 @@ class MqttIntegration(BaseIntegration):
             logger.warning(f"Object not found: {object_key}")
             return
 
-        new_value = {**current_obj.value, field: value}
+        new_value = {**current_obj.value, **values}
         new_revision = current_obj.object_revision + 1
         new_timestamp = int(time.time() * 1000)
 
@@ -399,7 +417,7 @@ class MqttIntegration(BaseIntegration):
             updated_at=datetime.now(),
         )
         await self._state_service.upsert_object(obj)
-        logger.info(f"Applied raw command to {serial}: {{{field}: {value}}}")
+        logger.info(f"Applied raw command to {serial}: {values}")
 
         # Push to subscribed device immediately
         if self._subscription_manager:

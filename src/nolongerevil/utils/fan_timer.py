@@ -22,23 +22,6 @@ def get_fan_timer_state(values: dict[str, Any]) -> FanTimerState:
     return FanTimerState(timeout=int(timeout) if timeout is not None else None)
 
 
-def is_explicitly_turning_off_fan(new_values: dict[str, Any]) -> bool:
-    """Check if values explicitly turn off the fan.
-
-    Args:
-        new_values: Incoming device values
-
-    Returns:
-        True if explicitly disabling fan
-    """
-    # Check fan_timer_timeout = 0
-    if "fan_timer_timeout" in new_values and new_values["fan_timer_timeout"] == 0:
-        return True
-
-    # Check fan_control_state = false
-    return "fan_control_state" in new_values and new_values["fan_control_state"] is False
-
-
 def is_fan_timer_active(state: FanTimerState) -> bool:
     """Check if a fan timer is currently active.
 
@@ -106,11 +89,6 @@ def preserve_fan_timer_state(
 
     result = new_values.copy()
 
-    # Check if explicitly turning off fan
-    if is_explicitly_turning_off_fan(new_values):
-        logger.debug("Fan timer explicitly disabled" + (f" for device {serial}" if serial else ""))
-        return result
-
     # Get current fan timer state
     current_state = get_fan_timer_state(existing_values)
 
@@ -118,12 +96,30 @@ def preserve_fan_timer_state(
         # No active timer, nothing to preserve
         return result
 
-    # Preserve all fan-related fields from existing values
-    # Only if not explicitly being set in new values
+    # This function is called only while merging thermostat-originated state.
+    # A device may echo its stale pre-command fan fields before it applies the
+    # server push. Preserve the authoritative active hold when that echo says
+    # timeout=0/control=false. Explicit API/MQTT fan-off commands update server
+    # state through execute_command() and do not pass here. A positive timeout
+    # from the device is real progress and remains authoritative.
     fan_fields = extract_fan_timer_fields(existing_values)
     for key, value in fan_fields.items():
         if key not in new_values:
             result[key] = value
+
+    incoming_timeout = new_values.get("fan_timer_timeout")
+    if isinstance(incoming_timeout, (int, float, str)):
+        try:
+            normalized_timeout = int(incoming_timeout)
+        except (ValueError, OverflowError):
+            normalized_timeout = 0
+    else:
+        normalized_timeout = 0
+    if normalized_timeout <= int(time.time()):
+        result["fan_timer_timeout"] = current_state.timeout
+
+    if existing_values.get("fan_control_state") is True:
+        result["fan_control_state"] = True
 
     logger.debug(
         f"Preserving active fan timer (timeout={current_state.timeout})"

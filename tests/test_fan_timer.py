@@ -73,15 +73,16 @@ class TestPreserveFanTimerState:
 
         assert result["fan_timer_timeout"] == future_timeout
 
-    def test_explicit_fan_off_overrides(self):
-        """Test that explicit fan-off command overrides preservation."""
+    def test_device_fan_off_echo_does_not_override_active_server_timer(self):
+        """A thermostat echo cannot cancel an active server-side timer."""
         future_timeout = int(time.time()) + 3600
-        existing = {"fan_timer_timeout": future_timeout}
-        new_values = {"fan_timer_timeout": 0}
+        existing = {"fan_timer_timeout": future_timeout, "fan_control_state": True}
+        new_values = {"fan_timer_timeout": 0, "fan_control_state": False}
 
         result = preserve_fan_timer_state(existing, new_values)
 
-        assert result["fan_timer_timeout"] == 0
+        assert result["fan_timer_timeout"] == future_timeout
+        assert result["fan_control_state"] is True
 
     def test_explicit_new_timeout(self):
         """Test that new timeout value is used."""
@@ -90,5 +91,14 @@ class TestPreserveFanTimerState:
         new_values = {"fan_timer_timeout": new_timeout}
 
         result = preserve_fan_timer_state(existing, new_values)
+
+        assert result["fan_timer_timeout"] == new_timeout
+
+    def test_explicit_new_timeout_as_numeric_string(self):
+        """Test that a new numeric-string timeout is used."""
+        existing = {"fan_timer_timeout": int(time.time()) + 3600}
+        new_timeout = str(int(time.time()) + 7200)
+
+        result = preserve_fan_timer_state(existing, {"fan_timer_timeout": new_timeout})
 
         assert result["fan_timer_timeout"] == new_timeout
