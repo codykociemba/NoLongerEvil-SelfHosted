@@ -186,6 +186,30 @@ def parse_put_body(body: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
     if "objects" in body and isinstance(body["objects"], list):
         return session, body["objects"]
 
+    # Convert legacy v3 format:
+    # {"device": {"SERIAL": {...}}, "shared": {"SERIAL": {...}}}
+    if isinstance(body.get("device"), dict) or isinstance(body.get("shared"), dict):
+        objects: list[dict[str, Any]] = []
+
+        for bucket_name in ("device", "shared"):
+            bucket = body.get(bucket_name)
+            if not isinstance(bucket, dict):
+                continue
+
+            for device_serial, value in bucket.items():
+                if isinstance(value, dict):
+                    objects.append(
+                        {
+                            "object_key": f"{bucket_name}.{device_serial}",
+                            "value": value,
+                        }
+                    )
+
+        if objects:
+            logger.info(f"Converted legacy v3 PUT format to {len(objects)} objects")
+            return session, objects
+
+  
     # Parse bucket-keyed format
     objects: list[dict[str, Any]] = []
     metadata_fields = {"object_key", "base_object_revision", "if_object_revision"}
