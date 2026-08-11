@@ -923,10 +923,12 @@ async def handle_transport_put(request: web.Request) -> web.Response:
             if values_changed
             else (server_obj.object_revision if server_obj else 0)
         )
+      
         # Only bump timestamp when values actually changed. Duplicate PUTs with
         # identical values would advance the server timestamp while the device
         # tracks the older timestamp, causing a spurious full-bucket push on the
         # next subscribe that can override the device's local schedule.
+        # (Fred) or if legacy_v3.  (still experimental)
         
         # new_timestamp = (
         #     int(time.time() * 1000)
@@ -961,6 +963,12 @@ async def handle_transport_put(request: web.Request) -> web.Response:
             "object_timestamp": new_obj.object_timestamp,
             "object_key": new_obj.object_key,
         }
+
+        # (Fred) Legacy Gen2 v3 expects the accepted value echoed back when
+        # the object actually changed. This appears to clear its local
+        # dirty state and acknowledge the write.
+        if legacy_v3 and values_changed:
+            response_obj["value"] = new_obj.value
 
         response_objects.append(response_obj)
 
