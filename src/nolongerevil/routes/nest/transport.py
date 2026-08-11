@@ -844,6 +844,13 @@ async def handle_transport_put(request: web.Request) -> web.Response:
     except json.JSONDecodeError:
         return web.json_response({"error": "Invalid JSON"}, status=400)
 
+    # Legacy Gen2 v3 sends top-level device/shared buckets.
+    # We use this flag to preserve the acknowledgement semantics
+    # expected by older nlclient firmware.
+    legacy_v3 = isinstance(body.get("device"), dict) or isinstance(
+        body.get("shared"), dict
+    )
+  
     # Parse body supporting both formats (objects array or bucket-keyed)
     _session, objects = parse_put_body(body)
     if not isinstance(objects, list):
@@ -920,11 +927,17 @@ async def handle_transport_put(request: web.Request) -> web.Response:
         # identical values would advance the server timestamp while the device
         # tracks the older timestamp, causing a spurious full-bucket push on the
         # next subscribe that can override the device's local schedule.
+        
+        # new_timestamp = (
+        #     int(time.time() * 1000)
+        #     if values_changed
+        #     else (server_obj.object_timestamp if server_obj else int(time.time() * 1000))
+        # )
         new_timestamp = (
             int(time.time() * 1000)
-            if values_changed
+            if values_changed or legacy_v3
             else (server_obj.object_timestamp if server_obj else int(time.time() * 1000))
-        )
+        )  
 
         # Save update
         new_obj = DeviceObject(
