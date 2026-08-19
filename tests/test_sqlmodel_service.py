@@ -1,6 +1,7 @@
 """Tests for SQLModel service implementation."""
 
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -18,6 +19,7 @@ from nolongerevil.lib.types import (
     UserInfo,
     WeatherData,
 )
+from nolongerevil.services.sqlmodel_service import SQLModelService
 
 
 class TestSQLModelService:
@@ -206,6 +208,75 @@ class TestSQLModelService:
 
         updated = await sqlmodel_service.get_cached_weather("12345", "US")
         assert updated.data["current"]["temp"] == 75
+
+    async def test_sync_user_weather_extracts_keyed_location(self):
+        """Test that user weather is extracted from the Nest location key."""
+        serial = "WEATHER1"
+        user_id = "weather_user"
+        now = datetime.now()
+        service = SQLModelService.__new__(SQLModelService)
+        user_state = DeviceObject(serial, f"user.{user_id}", 1, 1, {}, now)
+        service.get_user_devices = AsyncMock(return_value=[serial])
+        service.get_object = AsyncMock(
+            side_effect=[
+                DeviceObject(
+                    serial, f"device.{serial}", 1, 1,
+                    {"postal_code": "39440", "country": "US"}, now
+                ),
+                user_state,
+            ]
+        )
+        service.get_cached_weather = AsyncMock(
+            return_value=WeatherData(
+                "39440", "US", now,
+                {"39440,US": {"current": {"temp_c": 36.1}, "location": {"city": "Test"}}},
+            )
+        )
+        service.upsert_object = AsyncMock()
+
+        await service.sync_user_weather_from_device(user_id)
+
+        updated_state = service.upsert_object.await_args.args[0]
+        assert updated_state.value["weather"]["current"]["temp_c"] == 36.1
+        assert updated_state.value["weather"]["location"]["city"] == "Test"
+
+    @pytest.mark.parametrize(
+        "weather_data",
+        [
+            {"other-location": {}},
+            {"A1B 2C3,CA": "not-an-object"},
+            {"A1B 2C3,CA": {}},
+            {"A1B 2C3,CA": {"current": None}},
+        ],
+    )
+    async def test_sync_user_weather_ignores_missing_or_malformed_location(self, weather_data):
+        """Test that invalid keyed weather data does not overwrite user weather."""
+        serial = "WEATHER2"
+        user_id = "weather_user_2"
+        now = datetime.now()
+        existing_weather = {"current": {"temp_c": 20}}
+        service = SQLModelService.__new__(SQLModelService)
+        service.get_user_devices = AsyncMock(return_value=[serial])
+        service.get_object = AsyncMock(
+            side_effect=[
+                DeviceObject(
+                    serial, f"device.{serial}", 1, 1,
+                    {"postal_code": "A1B 2C3", "country": "CA"}, now
+                ),
+                DeviceObject(
+                    serial, f"user.{user_id}", 1, 1,
+                    {"weather": existing_weather}, now
+                ),
+            ]
+        )
+        service.get_cached_weather = AsyncMock(
+            return_value=WeatherData("A1B 2C3", "CA", now, weather_data)
+        )
+        service.upsert_object = AsyncMock()
+
+        await service.sync_user_weather_from_device(user_id)
+
+        service.upsert_object.assert_not_awaited()
 
     async def test_api_key_operations(self, sqlmodel_service):
         """Test API key CRUD operations."""

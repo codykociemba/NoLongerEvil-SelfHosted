@@ -590,12 +590,16 @@ class MqttIntegration(BaseIntegration):
             retain=True,
         )
 
-        # Outdoor temperature
-        outdoor_temp = (
-            device_values.get("outdoor_temperature")
-            or shared_values.get("outside_temperature")
-            or device_values.get("outside_temperature")
-        )
+        # Outdoor temperature. Check explicitly for None so 0°C remains valid.
+        outdoor_temp = device_values.get("outdoor_temperature")
+        if outdoor_temp is None:
+            outdoor_temp = shared_values.get("outside_temperature")
+        if outdoor_temp is None:
+            outdoor_temp = device_values.get("outside_temperature")
+        if outdoor_temp is None:
+            weather = await self._state_service.storage.get_user_weather(self.user_id)
+            current_weather = (weather or {}).get("current") or {}
+            outdoor_temp = current_weather.get("temp_c")
         if outdoor_temp is not None:
             await client.publish(
                 f"{prefix}/{serial}/ha/outdoor_temperature",
