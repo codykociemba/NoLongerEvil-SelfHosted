@@ -139,6 +139,21 @@ class TestGetWeather:
         mock_storage.get_cached_weather.assert_called_with("ip", "auto")
 
     @pytest.mark.asyncio
+    async def test_caches_legacy_query_location(self, weather_service, mock_storage):
+        """Test that a legacy query location can use explicit cache coordinates."""
+        mock_storage.get_cached_weather.return_value = None
+        weather_service._fetch_weather = AsyncMock(return_value={"39440,US": {}})
+
+        await weather_service.get_weather(
+            postal_code="39440", country="US", query_string="query=39440,US"
+        )
+
+        mock_storage.get_cached_weather.assert_called_once_with("39440", "US")
+        cached_call = mock_storage.cache_weather.call_args[0][0]
+        assert cached_call.postal_code == "39440"
+        assert cached_call.country == "US"
+
+    @pytest.mark.asyncio
     async def test_returns_stale_cache_on_fetch_error(self, weather_service, mock_storage):
         """Test that stale cache is returned when fetch fails."""
         stale_weather = WeatherData(
