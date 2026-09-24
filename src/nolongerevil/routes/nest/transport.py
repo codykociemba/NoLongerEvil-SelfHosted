@@ -531,6 +531,10 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                 )
             )
 
+    # Before any structure bucket is sent back, drop a manual eco flag the
+    # device has already left.
+    await _sync_manual_eco_from_device(state_service, serial)
+
     # Include user + structure buckets for paired devices.
     # The user bucket's "name" field completes pairing on the device.
     # The structure bucket alone is not sufficient — the device requires
@@ -929,6 +933,7 @@ async def handle_transport_put(request: web.Request) -> web.Response:
 
     # Sync user state if device object changed
     if device_object_changed:
+        await _sync_manual_eco_from_device(state_service, serial)
         device_owner = await state_service.storage.get_device_owner(serial)
         if device_owner:
             await state_service.storage.update_user_away_status(device_owner.user_id)
@@ -952,6 +957,44 @@ async def handle_transport_put(request: web.Request) -> web.Response:
         {"objects": response_objects},
         headers=_make_response_headers(),
     )
+
+
+async def _sync_manual_eco_from_device(state_service: DeviceStateService, serial: str) -> None:
+    """Clear structure manual_eco_all once the device reports it left manual eco.
+
+    The firmware exits manual eco on its own when the setpoint changes (dial,
+    Nest app, HA/HomeKit). Without this, manual_eco_all stays true and HA keeps
+    showing Eco on / preset away, and the stale flag is re-sent to the device
+    on its next first-connect structure push.
+
+    Only clears when the device's eco.mode_update_timestamp is newer than the
+    server's manual_eco_timestamp, so a device report from before an Eco-on
+    command lands cannot undo that command.
+    """
+    device_obj = state_service.get_object(serial, f"device.{serial}")
+    eco = device_obj.value.get("eco") if device_obj else None
+    if not isinstance(eco, dict) or eco.get("mode") == "manual-eco":
+        return
+    exited_at = eco.get("mode_update_timestamp")
+    if not isinstance(exited_at, (int, float)):
+        return
+
+    for obj in state_service.get_objects_by_serial(serial):
+        if not obj.object_key.startswith("structure.") or not obj.value.get("manual_eco_all"):
+            continue
+        if exited_at <= obj.value.get("manual_eco_timestamp", 0):
+            continue
+        await state_service.merge_object_values(
+            serial=serial,
+            object_key=obj.object_key,
+            values={"manual_eco_all": False, "manual_eco_timestamp": int(time.time())},
+            revision=obj.object_revision + 1,
+            timestamp=int(time.time() * 1000),
+        )
+        logger.info(
+            f"Device {serial} left manual eco (eco.mode={eco.get('mode')}); "
+            f"cleared manual_eco_all on {obj.object_key}"
+        )
 
 
 def _values_equal(a: dict[str, Any] | None, b: dict[str, Any] | None) -> bool:
