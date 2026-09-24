@@ -64,6 +64,7 @@ class ApiMode(StrEnum):
     HEAT = "heat"
     COOL = "cool"
     HEAT_COOL = "heat-cool"
+    HA_HEAT_COOL = "heat_cool"  # Home Assistant climate mode
     RANGE = "range"
     AUTO = "auto"
     EMERGENCY = "emergency"
@@ -97,6 +98,7 @@ API_MODE_TO_NEST: dict[ApiMode, NestMode] = {
     ApiMode.HEAT: NestMode.HEAT,
     ApiMode.COOL: NestMode.COOL,
     ApiMode.HEAT_COOL: NestMode.RANGE,
+    ApiMode.HA_HEAT_COOL: NestMode.RANGE,
     ApiMode.RANGE: NestMode.RANGE,
     ApiMode.AUTO: NestMode.RANGE,
     ApiMode.EMERGENCY: NestMode.EMERGENCY,
