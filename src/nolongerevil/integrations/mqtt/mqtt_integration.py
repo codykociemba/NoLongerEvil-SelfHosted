@@ -30,6 +30,7 @@ import json
 import re
 import ssl
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -79,6 +80,7 @@ class MqttIntegration(BaseIntegration):
         config: IntegrationConfig,
         state_service: "DeviceStateService",
         subscription_manager: "SubscriptionManager | None" = None,
+        availability_checker: Callable[[str], bool] | None = None,
     ) -> None:
         """Initialize the MQTT integration.
 
@@ -86,10 +88,14 @@ class MqttIntegration(BaseIntegration):
             config: Integration configuration
             state_service: Device state service
             subscription_manager: Subscription manager for pushing updates to devices
+            availability_checker: Returns whether a device is currently connected.
+                Used when (re)publishing availability after an MQTT (re)connect so a
+                device that has stopped checking in is not reported as online.
         """
         super().__init__(config)
         self._state_service = state_service
         self._subscription_manager = subscription_manager
+        self._availability_checker = availability_checker
         self._client: aiomqtt.Client | None = None
         self._active_client: aiomqtt.Client | None = None
         self._listener_task: asyncio.Task[None] | None = None
@@ -183,17 +189,25 @@ class MqttIntegration(BaseIntegration):
 
     async def _subscribe_to_commands(self, client: aiomqtt.Client) -> None:
         """Subscribe to command topics."""
+        for topic in self._command_subscriptions():
+            await client.subscribe(topic)
+            logger.debug(f"Subscribed to {topic}")
+
+    def _command_subscriptions(self) -> list[str]:
+        """Return the command topic filters to subscribe to.
+
+        HA command topics (``{prefix}/{serial}/ha/{cmd}/set``) also match the raw
+        filter ``{prefix}/+/+/+/set``. Subscribing to both makes the broker deliver
+        every HA command twice (once per matching subscription), so the command is
+        executed twice. Use a single filter that covers everything we handle;
+        ``_handle_message`` routes by topic shape.
+        """
         prefix = self._topic_prefix
-
-        # Raw command topics
         if self._publish_raw:
-            await client.subscribe(f"{prefix}/+/+/+/set")
-            logger.debug(f"Subscribed to {prefix}/+/+/+/set")
-
-        # HA command topics
+            return [f"{prefix}/+/+/+/set"]
         if self._ha_discovery:
-            await client.subscribe(f"{prefix}/+/ha/+/set")
-            logger.debug(f"Subscribed to {prefix}/+/ha/+/set")
+            return [f"{prefix}/+/ha/+/set"]
+        return []
 
     async def _handle_message(
         self,
@@ -210,13 +224,17 @@ class MqttIntegration(BaseIntegration):
         else:
             payload = ""
 
+        if not topic.endswith("/set"):
+            return
+
         # Handle HA command topics
-        if "/ha/" in topic and topic.endswith("/set"):
-            await self._handle_ha_command(topic, payload)
+        if "/ha/" in topic:
+            if self._ha_discovery:
+                await self._handle_ha_command(topic, payload)
             return
 
         # Handle raw command topics
-        if topic.endswith("/set"):
+        if self._publish_raw:
             await self._handle_raw_command(topic, payload)
 
     async def _handle_ha_command(self, topic: str, payload: str) -> None:
@@ -844,6 +862,20 @@ class MqttIntegration(BaseIntegration):
             except Exception as e:
                 logger.error(f"Failed to publish discovery for {serial}: {e}")
 
+    def _is_device_available(self, serial: str) -> bool:
+        """Return whether a device is currently connected.
+
+        Falls back to True when no availability source is configured, which
+        preserves the previous behavior.
+        """
+        if self._availability_checker is None:
+            return True
+        try:
+            return self._availability_checker(serial)
+        except Exception as e:
+            logger.warning(f"Availability check failed for {serial}: {e}")
+            return True
+
     async def _publish_initial_state(self, client: aiomqtt.Client) -> None:
         """Publish initial state and availability for all known devices."""
         serials = self._state_service.get_all_serials()
@@ -866,10 +898,13 @@ class MqttIntegration(BaseIntegration):
                 if self._ha_discovery and device_obj and shared_obj:
                     await self._publish_ha_state(client, serial)
 
-                # Publish availability
+                # Publish availability. This runs on every MQTT (re)connect, so it
+                # must reflect whether the device is actually checking in; blindly
+                # publishing "online" would mask a device that has gone silent.
+                availability = "online" if self._is_device_available(serial) else "offline"
                 availability_topic = build_availability_topic(self._topic_prefix, serial)
-                await client.publish(availability_topic, "online", retain=True)
-                logger.info(f"Published availability to {availability_topic}: online")
+                await client.publish(availability_topic, availability, retain=True)
+                logger.info(f"Published availability to {availability_topic}: {availability}")
 
             except Exception as e:
                 logger.error(f"Failed to publish initial state for {serial}: {e}")
