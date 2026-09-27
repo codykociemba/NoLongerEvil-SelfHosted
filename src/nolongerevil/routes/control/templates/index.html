@@ -263,6 +263,9 @@
       font-size: 16px; opacity: 0.3; transition: all 0.15s;
     }
     .btn-delete:hover { opacity: 1; color: #dc2626; }
+    @media (hover: none) {
+      .btn-delete { opacity: 0.7; padding: 8px; font-size: 18px; }
+    }
 
     /* Row 2: current temp + target controls */
     .card-row-climate {
@@ -438,7 +441,10 @@
     .sched-toggle:hover { color: var(--text2); }
     .sched-toggle .mdi { font-size: 14px; transition: transform 0.2s; }
     .sched-toggle.open .mdi { transform: rotate(90deg); }
-    .sched-section { display: none; padding-top: 12px; }
+    .sched-section {
+      display: none; padding-top: 12px;
+      --sched-label-w: 40px; --sched-add-w: 30px;
+    }
     .sched-section.open { display: block; }
     .sched-grid { margin-bottom: 4px; }
     .sched-row {
@@ -447,18 +453,22 @@
     }
     .sched-row:last-child { border-bottom: none; }
     .sched-day-label {
-      width: 40px; flex-shrink: 0;
+      width: var(--sched-label-w); flex-shrink: 0; align-self: stretch;
       font-size: 11px; font-weight: 600; color: var(--text2);
+      background: none; border: none; padding: 0; text-align: left;
+      cursor: pointer; font-family: inherit;
     }
+    .sched-day-label:hover { color: var(--text); }
+    .sched-day-label.active { color: var(--accent); }
     .sched-timeline {
       flex: 1; position: relative; height: 100%;
     }
     .sched-row-add {
-      flex-shrink: 0; width: 22px;
-      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; width: var(--sched-add-w);
+      display: flex; align-items: center; justify-content: flex-end;
     }
     .sched-row-add button {
-      width: 20px; height: 20px; border-radius: 50%;
+      width: 24px; height: 24px; border-radius: 50%;
       border: 1px dashed var(--border); background: none;
       color: var(--text3); font-size: 14px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
@@ -475,11 +485,17 @@
       display: flex; align-items: center; justify-content: center;
       top: 50%; transform: translate(-50%, -50%);
       cursor: grab; user-select: none; -webkit-user-select: none;
+      /* Horizontal drags move the setpoint; vertical swipes still scroll the page */
+      touch-action: pan-y;
       z-index: 2; transition: box-shadow 0.15s;
       box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     }
     .sched-circle:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 3; }
-    .sched-circle:active { cursor: grabbing; }
+    .sched-circle.dragging { cursor: grabbing; z-index: 5; }
+    .sched-circle.selected {
+      box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent);
+      z-index: 4;
+    }
     .sched-circle.heat { background: #f59e0b; }
     .sched-circle.cool { background: #3b82f6; }
     .sched-circle.range {
@@ -494,7 +510,13 @@
       text-align: center; cursor: pointer;
       opacity: 0; transition: opacity 0.15s;
     }
-    .sched-circle:hover .circle-del { opacity: 1; }
+    @media (hover: hover) {
+      .sched-circle:hover .circle-del { opacity: 1; }
+    }
+    @media (hover: none) {
+      /* No hover on touch screens — delete from the day editor instead */
+      .sched-circle .circle-del { display: none; }
+    }
     .sched-drag-label {
       position: absolute; bottom: calc(100% + 4px); left: 50%;
       transform: translateX(-50%);
@@ -505,38 +527,61 @@
       z-index: 10;
     }
     .sched-axis {
-      display: flex; margin-left: 40px; padding-top: 2px;
+      position: relative; height: 14px; margin-top: 2px;
+      margin-left: var(--sched-label-w); margin-right: var(--sched-add-w);
     }
     .sched-axis-label {
-      font-size: 9px; color: var(--text3); text-align: center;
+      position: absolute; top: 0; transform: translateX(-50%);
+      font-size: 9px; color: var(--text3); white-space: nowrap;
     }
+    .sched-axis-label:first-child { transform: none; }
     .sched-save-row {
       display: flex; align-items: center; gap: 8px; padding-top: 10px;
     }
     .sched-save-msg { font-size: 12px; }
 
-    /* Inline temp popover */
-    .sched-popover {
-      position: absolute; bottom: calc(100% + 6px); left: 50%;
-      transform: translateX(-50%);
-      background: var(--card); border-radius: 10px;
-      box-shadow: var(--shadow-lg); border: 1px solid var(--border);
-      padding: 6px 4px; z-index: 20;
-      display: flex; align-items: center; gap: 2px;
-      white-space: nowrap;
+    /* Day editor panel */
+    .sched-editor {
+      margin-top: 10px; padding: 10px 12px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px;
     }
-    .sched-popover::after {
-      content: ''; position: absolute; top: 100%; left: 50%;
-      transform: translateX(-50%);
-      border: 5px solid transparent; border-top-color: var(--card);
+    .sched-editor-head {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 13px; font-weight: 650; margin-bottom: 4px;
     }
+    .sched-edit-row {
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: 8px 10px; padding: 8px 6px;
+      border-top: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .sched-edit-row:first-of-type { border-top: none; }
+    .sched-edit-row.selected { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--accent); }
+    .sched-edit-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .sched-edit-dot.heat { background: #f59e0b; }
+    .sched-edit-dot.cool { background: #3b82f6; }
+    .sched-edit-dot.range { background: #7c3aed; }
+    .sched-time-input {
+      font-family: inherit; font-size: 16px; font-weight: 600;
+      padding: 6px 8px; min-height: 38px;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--card); color: var(--text); outline: none;
+    }
+    .sched-time-input:focus { border-color: var(--accent); }
+    .sched-edit-temps {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .sched-edit-spacer { flex: 1; min-width: 0; }
     .sched-pop-group {
-      display: flex; align-items: center; gap: 2px;
+      display: flex; align-items: center; gap: 4px;
     }
     .sched-pop-btn {
-      width: 24px; height: 24px; border-radius: 50%;
-      border: 1px solid var(--border); background: var(--card);
-      color: var(--text); font-size: 14px; font-weight: 600;
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1.5px solid var(--border); background: var(--card);
+      color: var(--text); font-size: 18px; font-weight: 600;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
       transition: all 0.1s; user-select: none; -webkit-user-select: none;
       line-height: 1;
@@ -544,15 +589,28 @@
     .sched-pop-btn:hover { background: var(--hover); border-color: var(--text3); }
     .sched-pop-btn:active { transform: scale(0.9); }
     .sched-pop-val {
-      min-width: 36px; text-align: center;
-      font-size: 14px; font-weight: 700; color: var(--text);
-      padding: 2px 2px;
+      width: 44px; text-align: center;
+      font-size: 16px; font-weight: 700; color: var(--text);
+      padding: 4px 2px;
       border: none; background: transparent; outline: none;
       font-family: inherit;
     }
-    .sched-pop-val:focus { background: var(--bg); border-radius: 4px; }
-    .sched-pop-unit { font-size: 10px; color: var(--text3); margin-right: 2px; }
-    .sched-pop-sep { color: var(--text3); font-size: 10px; margin: 0 2px; }
+    .sched-pop-val:focus { background: var(--card); border-radius: 6px; }
+    .sched-pop-unit { font-size: 11px; color: var(--text3); }
+    .sched-pop-sep { color: var(--text3); font-size: 12px; margin: 0 2px; }
+    .sched-del-btn {
+      width: 38px; height: 38px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--card);
+      color: var(--text3); font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .sched-del-btn:hover, .sched-del-btn:active { color: #dc2626; border-color: #dc2626; }
+    .sched-editor-empty { font-size: 12px; color: var(--text3); padding: 8px 6px; }
+    .sched-editor-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; padding-top: 8px;
+    }
 
     /* Nest network scan panel */
     .scan-panel { margin-top: 8px; }
@@ -599,6 +657,38 @@
     }
     .btn-scan:hover { background: var(--accent-hover); }
     .btn-scan:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* Touch: no double-tap zoom delay on controls */
+    button, input { touch-action: manipulation; }
+
+    /* Phones */
+    @media (max-width: 520px) {
+      body { padding: 16px 10px; }
+      .device-card { padding: 12px; }
+      .card-serial { word-break: break-all; }
+      .card-row-climate { flex-wrap: wrap; gap: 10px; }
+      .temp-big { font-size: 42px; }
+      .temp-btn { width: 44px; height: 44px; }
+      .range-btn { width: 36px; height: 36px; font-size: 17px; }
+      .range-value { min-width: 36px; }
+      .target-range { flex-wrap: wrap; }
+      .mode-btn { padding: 9px 10px; }
+      .fan-btn { padding: 8px 9px; }
+      .eco-btn { padding: 8px 10px; }
+      .sched-toggle { padding: 12px 0 4px; font-size: 13px; }
+      .sched-section { --sched-label-w: 34px; --sched-add-w: 34px; }
+      .sched-row { height: 44px; }
+      .sched-circle { width: 30px; height: 30px; font-size: 11px; }
+      .sched-circle.range { font-size: 9px; }
+      .sched-row-add button { width: 28px; height: 28px; font-size: 16px; }
+      .sched-editor { padding: 8px; }
+      .sched-edit-row { gap: 8px 6px; padding: 8px 4px; }
+      .sched-edit-dot { display: none; }
+      .sched-time-input { padding: 6px 4px; }
+      .sched-pop-val { width: 36px; }
+      .sched-edit-temps { gap: 4px; }
+      .sched-save-row .btn-primary { padding: 9px 18px !important; font-size: 14px !important; }
+    }
   </style>
 </head>
 <body>
@@ -667,7 +757,7 @@
       const es = new EventSource(BASE_PATH + '/api/events');
       es.onmessage = function() {
         // If user has active interaction, defer
-        if (activePopover) { _ssePending = true; return; }
+        if (activeEdit) { _ssePending = true; return; }
         for (const k in scheduleCache) { if (scheduleCache[k].dirty) { _ssePending = true; return; } }
         if (_scanActive) { _ssePending = true; return; }
         loadDevices();
@@ -843,6 +933,7 @@
 
     // --- Schedule ---
     const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const DAY_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
     const scheduleCache = {}; // serial -> {schedule, dirty, open}
     let editOverlay = null;
 
@@ -883,6 +974,7 @@
       const sc = scheduleCache[serial] || {};
       sc.open = !sc.open;
       scheduleCache[serial] = sc;
+      if (!sc.open && activeEdit && activeEdit.serial === serial) activeEdit = null;
       if (sc.open && !sc.schedule) {
         sc.loading = true;
         renderDevices(lastDevices);
@@ -988,21 +1080,19 @@
           const pct = ((entry.time || 0) / 86400) * 100;
           const temp = circleTemp(entry, scale);
           const color = modeColor(entry, mode);
-          const isActive = activePopover && activePopover.serial === serial &&
-            activePopover.dayIdx === di && activePopover.entryIdx === ei;
-          const popHtml = isActive ? buildPopoverHtml(serial, di, ei, scale) : '';
-          circles += '<div class="sched-circle ' + color + '" style="left:' + pct + '%"' +
+          const isSelected = activeEdit && activeEdit.serial === serial &&
+            activeEdit.dayIdx === di && activeEdit.entryIdx === ei;
+          circles += '<div class="sched-circle ' + color + (isSelected ? ' selected' : '') + '" style="left:' + pct + '%"' +
+            ' onpointerdown="startDrag(event,' + esc + ',' + di + ',' + ei + ')"' +
             ' onclick="editSetpoint(' + esc + ',' + di + ',' + ei + ')"' +
-            ' onmousedown="startDrag(event,' + esc + ',' + di + ',' + ei + ')"' +
-            ' ontouchstart="startDrag(event,' + esc + ',' + di + ',' + ei + ')"' +
             ' title="' + secsToTime(entry.time || 0) + '">' +
             temp +
             '<span class="circle-del" onclick="event.stopPropagation();removeSetpoint(' + esc + ',' + di + ',' + ei + ')">&#215;</span>' +
-            popHtml +
           '</div>';
         });
+        const dayActive = activeEdit && activeEdit.serial === serial && activeEdit.dayIdx === di;
         daysHtml += '<div class="sched-row">' +
-          '<span class="sched-day-label">' + DAY_NAMES[di] + '</span>' +
+          '<button class="sched-day-label' + (dayActive ? ' active' : '') + '" onclick="editDay(' + esc + ',' + di + ')" title="Edit ' + DAY_FULL[di] + '">' + DAY_NAMES[di] + '</button>' +
           '<div class="sched-timeline">' + gridlines + circles + '</div>' +
           '<div class="sched-row-add"><button onclick="addSetpoint(' + esc + ',' + di + ')" title="Add setpoint">+</button></div>' +
         '</div>';
@@ -1013,7 +1103,7 @@
       let axisHtml = '<div class="sched-axis">';
       for (let h = 0; h < 24; h += 2) {
         const label = is24 ? String(h).padStart(2,'0') : (h === 0 ? '12a' : h < 12 ? h + 'a' : h === 12 ? '12p' : (h-12) + 'p');
-        axisHtml += '<span class="sched-axis-label" style="flex:1">' + label + '</span>';
+        axisHtml += '<span class="sched-axis-label" style="left:' + ((h/24)*100) + '%">' + label + '</span>';
       }
       axisHtml += '</div>';
 
@@ -1025,7 +1115,9 @@
         '<span class="sched-save-msg" id="schedMsg_' + serial + '"></span>' +
       '</div>';
 
-      return '<div class="sched-section open">' + daysHtml + axisHtml + saveHtml + '</div>';
+      const editorHtml = (activeEdit && activeEdit.serial === serial) ? buildDayEditorHtml(serial, activeEdit.dayIdx, scale, mode) : '';
+
+      return '<div class="sched-section open">' + daysHtml + axisHtml + editorHtml + saveHtml + '</div>';
     }
 
     function markDirty(serial) {
@@ -1050,6 +1142,11 @@
       ensureDays(sc.schedule);
       const dk = String(dayIdx);
       sc.schedule.days[dk].splice(entryIdx, 1);
+      // Keep the day editor pointing at the right entry after indices shift
+      if (activeEdit && activeEdit.serial === serial && activeEdit.dayIdx === dayIdx) {
+        if (activeEdit.entryIdx === entryIdx) activeEdit.entryIdx = -1;
+        else if (activeEdit.entryIdx > entryIdx) activeEdit.entryIdx--;
+      }
       markDirty(serial);
       renderDevices(lastDevices);
     }
@@ -1068,47 +1165,61 @@
       if (mode === 'RANGE') { newEntry['temp-min'] = 18.0; newEntry['temp-max'] = 22.0; }
       else { newEntry.temp = 20.0; }
       entries.push(newEntry);
+      // Open the new setpoint in the day editor so its time/temp can be set right away
+      activeEdit = {serial, dayIdx, entryIdx: entries.length - 1};
       markDirty(serial);
       renderDevices(lastDevices);
     }
 
-    // Drag to adjust time
+    // Drag to adjust time. Uses pointer events so mouse and touch behave the same;
+    // the drag only starts after a small horizontal movement so a tap still opens the editor.
+    const DRAG_THRESHOLD_PX = 6;
     let dragSuppressClick = false;
     function startDrag(event, serial, dayIdx, entryIdx) {
-      event.preventDefault();
+      if (event.target.closest('.circle-del')) return;
+      if (event.pointerType === 'mouse') {
+        if (event.button !== 0) return;
+        event.preventDefault(); // avoid text selection while dragging
+      }
       const sc = scheduleCache[serial];
       if (!sc || !sc.schedule) return;
       const dk = String(dayIdx);
       const entry = sc.schedule.days[dk][entryIdx];
       if (!entry) return;
 
-      const circle = event.target.closest('.sched-circle');
+      const circle = event.currentTarget;
       const timeline = circle.parentElement;
       const rect = timeline.getBoundingClientRect();
+      const pointerId = event.pointerId;
+      const startX = event.clientX;
       let moved = false;
-
-      // Create floating time label
-      const label = document.createElement('span');
-      label.className = 'sched-drag-label';
-      label.textContent = secsToTime(entry.time || 0);
-      circle.appendChild(label);
+      let label = null;
 
       function onMove(e) {
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const pct = (clientX - rect.left) / rect.width;
+        if (e.pointerId !== pointerId) return;
+        if (!moved) {
+          if (Math.abs(e.clientX - startX) < DRAG_THRESHOLD_PX) return;
+          moved = true;
+          circle.classList.add('dragging');
+          label = document.createElement('span');
+          label.className = 'sched-drag-label';
+          circle.appendChild(label);
+        }
+        e.preventDefault();
+        const pct = (e.clientX - rect.left) / rect.width;
         const timeSecs = Math.round(Math.max(0, Math.min(pct, 1)) * 86400 / 900) * 900;
-        entry.time = timeSecs;
-        circle.style.left = ((timeSecs / 86400) * 100) + '%';
-        circle.title = secsToTime(timeSecs);
-        label.textContent = secsToTime(timeSecs);
-        moved = true;
+        entry.time = Math.min(timeSecs, 86400 - 900);
+        circle.style.left = ((entry.time / 86400) * 100) + '%';
+        circle.title = secsToTime(entry.time);
+        label.textContent = secsToTime(entry.time);
       }
-      function onEnd() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onEnd);
-        document.removeEventListener('touchmove', onMove);
-        document.removeEventListener('touchend', onEnd);
-        label.remove();
+      function onEnd(e) {
+        if (e.pointerId !== pointerId) return;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onEnd);
+        window.removeEventListener('pointercancel', onEnd);
+        if (label) label.remove();
+        circle.classList.remove('dragging');
         if (moved) {
           dragSuppressClick = true;
           setTimeout(() => { dragSuppressClick = false; }, 50);
@@ -1116,39 +1227,48 @@
           renderDevices(lastDevices);
         }
       }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onEnd);
-      document.addEventListener('touchmove', onMove, {passive: false});
-      document.addEventListener('touchend', onEnd);
+      window.addEventListener('pointermove', onMove, {passive: false});
+      window.addEventListener('pointerup', onEnd);
+      window.addEventListener('pointercancel', onEnd);
     }
 
-    let activePopover = null; // {serial, dayIdx, entryIdx}
+    let activeEdit = null; // {serial, dayIdx, entryIdx} — entryIdx -1 means no setpoint highlighted
 
     function editSetpoint(serial, dayIdx, entryIdx) {
-      if (dragSuppressClick) return; // Don't open popover after a drag
-      // If clicking the same circle, close it
-      if (activePopover && activePopover.serial === serial &&
-          activePopover.dayIdx === dayIdx && activePopover.entryIdx === entryIdx) {
-        closePopover();
+      if (dragSuppressClick) return; // Don't open editor after a drag
+      // Tapping the already-selected circle closes the editor
+      if (activeEdit && activeEdit.serial === serial &&
+          activeEdit.dayIdx === dayIdx && activeEdit.entryIdx === entryIdx) {
+        closeEditor();
         return;
       }
-      closePopover();
-      activePopover = {serial, dayIdx, entryIdx};
+      activeEdit = {serial, dayIdx, entryIdx};
       renderDevices(lastDevices);
     }
 
-    function closePopover() {
-      if (!activePopover) return;
-      activePopover = null;
+    function editDay(serial, dayIdx) {
+      if (activeEdit && activeEdit.serial === serial && activeEdit.dayIdx === dayIdx) {
+        closeEditor();
+        return;
+      }
+      activeEdit = {serial, dayIdx, entryIdx: -1};
+      renderDevices(lastDevices);
+    }
+
+    function closeEditor() {
+      if (!activeEdit) return;
+      activeEdit = null;
       if (_ssePending) { _ssePending = false; loadDevices(); return; }
       renderDevices(lastDevices);
     }
 
-    // Click outside to close popover
+    // Click outside the schedule to close the editor
     document.addEventListener('click', function(e) {
-      if (!activePopover) return;
-      if (e.target.closest('.sched-circle') || e.target.closest('.sched-popover')) return;
-      closePopover();
+      if (!activeEdit || dragSuppressClick) return;
+      // Target was replaced by a re-render during this click — it was inside the schedule
+      if (!document.contains(e.target)) return;
+      if (e.target.closest('.sched-section')) return;
+      closeEditor();
     });
 
     function adjustSetpointTemp(serial, dayIdx, entryIdx, field, delta) {
@@ -1163,8 +1283,7 @@
       const cur = entry[field] || 20;
       entry[field] = Math.max(4.5, Math.min(32.0, cur + delta * step));
       markDirty(serial);
-      // Keep popover open during adjustment
-      activePopover = {serial, dayIdx, entryIdx};
+      activeEdit = {serial, dayIdx, entryIdx};
       renderDevices(lastDevices);
     }
 
@@ -1183,40 +1302,82 @@
       markDirty(serial);
     }
 
-    function buildPopoverHtml(serial, dayIdx, entryIdx, scale) {
+    function secsToInputTime(s) {
+      s = Math.max(0, Math.min(s || 0, 86400 - 60));
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+      return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
+
+    function setSetpointTime(serial, dayIdx, entryIdx, value) {
+      const sc = scheduleCache[serial];
+      if (!sc || !sc.schedule) return;
+      const entry = sc.schedule.days[String(dayIdx)][entryIdx];
+      const m = /^(\d{1,2}):(\d{2})/.exec(value || '');
+      if (!entry || !m) return;
+      entry.time = Math.min(parseInt(m[1], 10) * 3600 + parseInt(m[2], 10) * 60, 86400 - 60);
+      activeEdit = {serial, dayIdx, entryIdx};
+      markDirty(serial);
+      renderDevices(lastDevices);
+    }
+
+    // Editor panel listing every setpoint for one day, rendered below the grid
+    function buildDayEditorHtml(serial, dayIdx, scale, schedMode) {
       const sc = scheduleCache[serial];
       if (!sc || !sc.schedule) return '';
-      const dk = String(dayIdx);
-      const entry = sc.schedule.days[dk][entryIdx];
-      if (!entry) return '';
-      const mode = (entry.type || sc.schedule.schedule_mode || 'HEAT').toUpperCase();
-      const args = "'" + serial + "'," + dayIdx + "," + entryIdx;
+      const entries = (sc.schedule.days && sc.schedule.days[String(dayIdx)]) || [];
+      const q = "'" + serial + "'";
 
-      function tempGroup(field, label) {
+      function tempGroup(args, entry, field) {
         const raw = entry[field];
         const display = raw != null ? (scale === 'F' ? Math.round(c2f(raw)) : Math.round(raw * 2) / 2) : '--';
-        const prefix = label ? '<span class="sched-pop-unit">' + label + '</span>' : '';
         return '<div class="sched-pop-group">' +
-          prefix +
-          '<button class="sched-pop-btn" onclick="event.stopPropagation();adjustSetpointTemp(' + args + ',\'' + field + '\',-1)">−</button>' +
-          '<input class="sched-pop-val" value="' + display + '" size="3"' +
+          '<button class="sched-pop-btn" onclick="adjustSetpointTemp(' + args + ',\'' + field + '\',-1)" aria-label="Decrease">−</button>' +
+          '<input class="sched-pop-val" value="' + display + '" inputmode="decimal" aria-label="Temperature"' +
           ' onchange="typeSetpointTemp(' + args + ',\'' + field + '\',this)"' +
-          ' onclick="event.stopPropagation();this.select()">' +
-          '<button class="sched-pop-btn" onclick="event.stopPropagation();adjustSetpointTemp(' + args + ',\'' + field + '\',1)">+</button>' +
+          ' onkeydown="if(event.key===\'Enter\')this.blur()"' +
+          ' onfocus="this.select()">' +
+          '<button class="sched-pop-btn" onclick="adjustSetpointTemp(' + args + ',\'' + field + '\',1)" aria-label="Increase">+</button>' +
         '</div>';
       }
 
-      let inner = '';
-      if (mode === 'RANGE') {
-        inner = tempGroup('temp-min', '') +
-          '<span class="sched-pop-sep">–</span>' +
-          tempGroup('temp-max', '');
-      } else {
-        inner = tempGroup('temp', '');
-      }
-      inner += '<span class="sched-pop-unit">\u00B0' + scale + '</span>';
+      // Show setpoints in time order; keep original indices for editing
+      const order = entries
+        .map((e, i) => i)
+        .filter(i => entries[i].entry_type !== 'continuation')
+        .sort((a, b) => (entries[a].time || 0) - (entries[b].time || 0));
 
-      return '<div class="sched-popover" onclick="event.stopPropagation()">' + inner + '</div>';
+      let rows = '';
+      order.forEach(ei => {
+        const entry = entries[ei];
+        const args = q + ',' + dayIdx + ',' + ei;
+        const mode = (entry.type || schedMode || 'HEAT').toUpperCase();
+        const temps = mode === 'RANGE'
+          ? tempGroup(args, entry, 'temp-min') + '<span class="sched-pop-sep">–</span>' + tempGroup(args, entry, 'temp-max')
+          : tempGroup(args, entry, 'temp');
+        const selected = activeEdit && activeEdit.entryIdx === ei;
+        rows += '<div class="sched-edit-row' + (selected ? ' selected' : '') + '">' +
+          '<span class="sched-edit-dot ' + modeColor(entry, schedMode) + '"></span>' +
+          '<input type="time" class="sched-time-input" step="900" value="' + secsToInputTime(entry.time) + '"' +
+            ' aria-label="Time" onchange="setSetpointTime(' + args + ',this.value)">' +
+          '<div class="sched-edit-temps">' + temps + '<span class="sched-pop-unit">°' + esc(scale) + '</span></div>' +
+          '<span class="sched-edit-spacer"></span>' +
+          '<button class="sched-del-btn" onclick="removeSetpoint(' + args + ')" title="Remove setpoint" aria-label="Remove setpoint">' +
+            '<i class="mdi mdi-trash-can-outline"></i></button>' +
+        '</div>';
+      });
+      if (!rows) rows = '<div class="sched-editor-empty">No setpoints on ' + DAY_FULL[dayIdx] + '.</div>';
+
+      return '<div class="sched-editor">' +
+        '<div class="sched-editor-head">' +
+          '<span>' + DAY_FULL[dayIdx] + '</span>' +
+          '<button class="btn-icon" onclick="closeEditor()" title="Close" aria-label="Close"><i class="mdi mdi-close"></i></button>' +
+        '</div>' +
+        rows +
+        '<div class="sched-editor-foot">' +
+          '<button class="btn-secondary" onclick="addSetpoint(' + q + ',' + dayIdx + ')"><i class="mdi mdi-plus"></i> Add setpoint</button>' +
+          '<button class="btn-primary" onclick="closeEditor()">Done</button>' +
+        '</div>' +
+      '</div>';
     }
 
     function resetSchedule(serial) {
@@ -1224,7 +1385,7 @@
       if (!sc || !sc.original) return;
       sc.schedule = JSON.parse(JSON.stringify(sc.original));
       sc.dirty = false;
-      activePopover = null;
+      activeEdit = null;
       renderDevices(lastDevices);
     }
 
