@@ -125,7 +125,7 @@ async def handle_configure_nest(request: web.Request) -> web.Response:
     api_key = body.get("api_key")
     payload: dict = {"endpoint": settings.api_origin}
     if api_key:
-        payload["api_key"] = str(api_key).upper().strip()
+        payload["api_key"] = str(api_key).strip()
 
     url = f"http://{ip}:8080/cgi-bin/api/settings"
     logger.info(f"Configuring Nest at {ip} (api_key={'yes' if api_key else 'no'})")
