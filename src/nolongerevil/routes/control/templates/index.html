@@ -505,10 +505,11 @@
       z-index: 10;
     }
     .sched-axis {
-      display: flex; margin-left: 40px; padding-top: 2px;
+      position: relative; height: 14px; margin-left: 40px; margin-right: 22px; padding-top: 2px;
     }
     .sched-axis-label {
-      font-size: 9px; color: var(--text3); text-align: center;
+      position: absolute; transform: translateX(-50%);
+      font-size: 9px; color: var(--text3); white-space: nowrap;
     }
     .sched-save-row {
       display: flex; align-items: center; gap: 8px; padding-top: 10px;
@@ -905,13 +906,11 @@
 
     function circleTemp(entry, scale) {
       if (entry['temp-min'] != null && entry['temp-max'] != null) {
-        const lo = scale === 'F' ? Math.round(c2f(entry['temp-min'])) : Math.round(entry['temp-min']);
-        const hi = scale === 'F' ? Math.round(c2f(entry['temp-max'])) : Math.round(entry['temp-max']);
-        return '<span style="opacity:.7">' + lo + '</span><span>' + hi + '</span>';
+        return '<span style="opacity:.7">' + tempVal(entry['temp-min'], scale) + '</span><span>' + tempVal(entry['temp-max'], scale) + '</span>';
       }
       const t = entry.temp;
       if (t == null) return '--';
-      return scale === 'F' ? Math.round(c2f(t)) : Math.round(t);
+      return tempVal(t, scale);
     }
 
     function modeColor(entry, schedMode) {
@@ -1013,7 +1012,7 @@
       let axisHtml = '<div class="sched-axis">';
       for (let h = 0; h < 24; h += 2) {
         const label = is24 ? String(h).padStart(2,'0') : (h === 0 ? '12a' : h < 12 ? h + 'a' : h === 12 ? '12p' : (h-12) + 'p');
-        axisHtml += '<span class="sched-axis-label" style="flex:1">' + label + '</span>';
+        axisHtml += '<span class="sched-axis-label" style="left:' + ((h/24)*100) + '%">' + label + '</span>';
       }
       axisHtml += '</div>';
 
