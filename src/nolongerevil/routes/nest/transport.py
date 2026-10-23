@@ -58,7 +58,17 @@ from aiohttp import web
 
 from nolongerevil.config.environment import settings
 from nolongerevil.lib.logger import get_logger
-from nolongerevil.lib.serial_parser import extract_serial_from_request, extract_weave_device_id
+from nolongerevil.lib.mac_alias import (
+    MAC_ALIAS_SERIAL_PREFIX,
+    looks_like_mac_serial,
+    objects_to_device_keys,
+    resolve_mac_alias,
+)
+from nolongerevil.lib.serial_parser import (
+    extract_serial_from_request,
+    extract_serial_from_session,
+    extract_weave_device_id,
+)
 from nolongerevil.lib.types import DeviceObject
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
@@ -343,6 +353,57 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     session, chunked, objects = parse_subscribe_body(body)
     if not session:
         session = f"session_{serial}_{int(time.time() * 1000)}"
+
+    # Move service references up so they're available for MAC resolution
+    state_service: DeviceStateService = request.app["state_service"]
+    subscription_manager: SubscriptionManager = request.app["subscription_manager"]
+
+    # Some devices (e.g. Display-2.12) only send their MAC at entry time.
+    # Their session ID is <mac><serial>, so extract the real serial from it.
+    mac_alias = None
+    if session and looks_like_mac_serial(serial):
+        extracted = extract_serial_from_session(session, serial)
+        if extracted:
+            logger.debug(f"Resolved MAC-only device {serial} to serial {extracted} via session ID")
+            mac_alias = serial.lower()
+            real_serial = extracted
+            request.app["mac_to_serial"][mac_alias] = real_serial
+            serial = real_serial
+            # Persist MAC->serial mapping so PUT handler survives restarts
+            await state_service.upsert_object(
+                DeviceObject(
+                    serial=f"{MAC_ALIAS_SERIAL_PREFIX}{mac_alias}",
+                    object_key="mac_alias",
+                    object_revision=1,
+                    object_timestamp=int(time.time() * 1000),
+                    value={"serial": real_serial},
+                    updated_at=datetime.now(),
+                )
+            )
+            # Migrate any MAC-keyed objects to real serial
+            mac_objects = state_service.get_objects_by_serial(mac_alias.upper())
+            if mac_objects:
+                logger.debug(
+                    f"Migrating {len(mac_objects)} objects from {mac_alias.upper()} to {real_serial}"
+                )
+                for mac_obj in mac_objects:
+                    # Rewrite object_key if it contains the MAC
+                    new_key = mac_obj.object_key
+                    if new_key.endswith(mac_alias):
+                        new_key = new_key[: -len(mac_alias)] + real_serial.lower()
+                    await state_service.upsert_object(
+                        DeviceObject(
+                            serial=real_serial,
+                            object_key=new_key,
+                            object_revision=mac_obj.object_revision,
+                            object_timestamp=mac_obj.object_timestamp,
+                            value=mac_obj.value,
+                            updated_at=datetime.now(),
+                        )
+                    )
+                await state_service.delete_device(mac_alias.upper())
+                logger.debug(f"Migration complete, deleted MAC device {mac_alias.upper()}")
+
     weave_device_id = extract_weave_device_id(request)
 
     # Log device-reported wake duration (X-nl-longest-wake is device-to-server only)
@@ -362,9 +423,6 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     if not isinstance(objects, list):
         return web.Response(text="Invalid request: objects array required", status=400)
 
-    state_service: DeviceStateService = request.app["state_service"]
-    subscription_manager: SubscriptionManager = request.app["subscription_manager"]
-
     response_objects: list[DeviceObject] = []
     # Track which client objects we processed (those with valid object_key)
     processed_client_objects: list[dict[str, Any]] = []
@@ -374,6 +432,11 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
         object_key = client_obj.get("object_key")
         if not object_key:
             continue
+
+        # Rewrite MAC-based object keys to real serial-based keys
+        if mac_alias and object_key.endswith(mac_alias):
+            object_key = object_key[: -len(mac_alias)] + serial.lower()
+            client_obj = {**client_obj, "object_key": object_key}  # rewrite in dict too
 
         processed_client_objects.append(client_obj)
         object_revision = client_obj.get("object_revision", 0)
@@ -651,7 +714,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     if not chunked:
         # Non-chunked mode - respond immediately (7s timeout on device side)
         if outdated_objects:
-            formatted_objs = [format_object_for_response(obj) for obj in outdated_objects]
+            formatted_objs = objects_to_device_keys(
+                [format_object_for_response(obj) for obj in outdated_objects], mac_alias
+            )
             return web.json_response(
                 {"objects": formatted_objs},
                 headers=_make_response_headers(),
@@ -700,7 +765,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
 
     # If we have outdated objects, send them immediately
     if outdated_objects:
-        formatted_objs = [format_object_for_response(obj) for obj in outdated_objects]
+        formatted_objs = objects_to_device_keys(
+            [format_object_for_response(obj) for obj in outdated_objects], mac_alias
+        )
         logger.debug(f"Sending {len(outdated_objects)} outdated object(s) immediately for {serial}")
         body_data = json.dumps({"objects": formatted_objs}).encode("utf-8")
         await response.write(body_data)
@@ -737,7 +804,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                 timeout=settings.connection_hold_timeout,
             )
             # Real data arrived - send it to wake the device
-            body_bytes = json.dumps({"objects": changed_objects}).encode("utf-8")
+            body_bytes = json.dumps(
+                {"objects": objects_to_device_keys(changed_objects, mac_alias)}
+            ).encode("utf-8")
             await response.write(body_bytes)
             data_sent = True
             total_bytes = len(body_bytes)
@@ -753,7 +822,9 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
                         notify_queue.get(),
                         timeout=INTER_CHUNK_BATCH_TIMEOUT,
                     )
-                    body_bytes = json.dumps({"objects": changed_objects}).encode("utf-8")
+                    body_bytes = json.dumps(
+                        {"objects": objects_to_device_keys(changed_objects, mac_alias)}
+                    ).encode("utf-8")
                     await response.write(body_bytes)
                     total_bytes += len(body_bytes)
                     chunk_count += 1
@@ -815,6 +886,11 @@ async def handle_transport_put(request: web.Request) -> web.Response:
     if not serial:
         return web.json_response({"error": "Device serial required"}, status=400)
 
+    state_service: DeviceStateService = request.app["state_service"]
+
+    # Resolve MAC-only devices to their real serial
+    serial, mac_alias = resolve_mac_alias(request, serial)
+
     try:
         body = await request.json()
     except json.JSONDecodeError:
@@ -825,8 +901,6 @@ async def handle_transport_put(request: web.Request) -> web.Response:
     if not isinstance(objects, list):
         return web.Response(text="Invalid request: objects array required", status=400)
 
-    state_service: DeviceStateService = request.app["state_service"]
-
     weave_device_id = extract_weave_device_id(request)
     response_objects: list[dict[str, Any]] = []
     device_object_changed = False
@@ -834,6 +908,10 @@ async def handle_transport_put(request: web.Request) -> web.Response:
     for client_obj in objects:
         object_key = client_obj.get("object_key")
         value = client_obj.get("value")
+
+        # Rewrite MAC-based object keys to real serial-based keys
+        if mac_alias and object_key and object_key.endswith(mac_alias):
+            object_key = object_key[: -len(mac_alias)] + serial.lower()
 
         if not object_key or not value:
             logger.warning(f"No value provided for {serial}/{object_key}")
@@ -949,7 +1027,7 @@ async def handle_transport_put(request: web.Request) -> web.Response:
     # which is the correct mechanism.  Removed 2026-02-09.
 
     return web.json_response(
-        {"objects": response_objects},
+        {"objects": objects_to_device_keys(response_objects, mac_alias)},
         headers=_make_response_headers(),
     )
 
@@ -996,6 +1074,7 @@ def create_transport_routes(
     app["state_service"] = state_service
     app["subscription_manager"] = subscription_manager
     app["device_availability"] = device_availability
+    app["mac_to_serial"] = {}  # MAC (lowercase, no colons) -> real serial (uppercase)
 
     # Device object listing - specific route first
     app.router.add_get("/nest/transport/device/{serial}", handle_transport_get)
