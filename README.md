@@ -49,10 +49,13 @@ docker run -d \
 1. Clone the repository:
    ```bash
    git clone https://github.com/codykociemba/NoLongerEvil-SelfHosted.git
-   cd nolongerevil-selfhosted
+   cd NoLongerEvil-SelfHosted
    ```
 
-2. Edit `docker-compose.yml` with your settings (network, ports, environment variables).
+2. Set the LAN IP of this machine (not `localhost`):
+   ```bash
+   echo "API_ORIGIN=http://YOUR_SERVER_IP:8000" > .env
+   ```
 
 3. Start the server:
    ```bash
