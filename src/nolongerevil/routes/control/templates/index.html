@@ -606,6 +606,7 @@
     <h1>No Longer Evil</h1>
     <div style="display:flex;gap:4px">
       <button onclick="loadDevices(true)" class="btn-icon" title="Refresh (clears scan results)"><i class="mdi mdi-refresh"></i></button>
+      <a href="/account" id="accountLink" class="btn-icon" title="Account" style="display:none"><i class="mdi mdi-account-circle-outline"></i></a>
     </div>
   </div>
 
@@ -653,6 +654,15 @@
 
   <script>
     const BASE_PATH = document.body.dataset.ingressPath || '';
+    if (document.body.dataset.login) {
+      document.getElementById('accountLink').style.display = '';
+      const _fetch = window.fetch;  // send the browser to the login page once the session ends
+      window.fetch = async (...args) => {
+        const r = await _fetch(...args);
+        if (r.status === 401) location.href = '/login';
+        return r;
+      };
+    }
     const pendingTargets = {};
     // Declare before first loadDevices() call — let is not initialized until declaration runs
     let _ssePending = false;

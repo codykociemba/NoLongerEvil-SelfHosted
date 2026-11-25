@@ -13,12 +13,15 @@ from nolongerevil.config import settings
 from nolongerevil.integrations.integration_manager import IntegrationManager
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.types import UserInfo
+from nolongerevil.middleware.control_auth import create_control_auth_middleware
 from nolongerevil.middleware.debug_logger import create_debug_logger_middleware
 from nolongerevil.middleware.device_auth import create_device_auth_middleware
 from nolongerevil.middleware.device_heartbeat import create_device_heartbeat_middleware
 from nolongerevil.middleware.url_normalizer import create_url_normalizer_middleware
 from nolongerevil.routes.control import setup_control_routes
+from nolongerevil.routes.control.auth import create_auth_routes, log_setup_code
 from nolongerevil.routes.nest import setup_nest_routes
+from nolongerevil.services.control_auth import ControlAuth
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
 from nolongerevil.services.sqlmodel_service import SQLModelService
@@ -196,12 +199,25 @@ def create_control_app(
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
         return response
 
-    app = web.Application(
-        middlewares=[
-            create_debug_logger_middleware(),  # type: ignore[list-item]
-            cors_middleware,
-        ]
-    )
+    middlewares = [create_debug_logger_middleware(), cors_middleware]
+    auth = ControlAuth(storage) if settings.control_auth and storage else None
+    if auth:
+        middlewares.append(create_control_auth_middleware(auth, state_service))
+
+    app = web.Application(middlewares=middlewares)  # type: ignore[arg-type]
+
+    if auth and storage:
+        app["control_auth"] = auth
+        create_auth_routes(app, auth, storage)
+
+        async def set_up_login(_app: web.Application) -> None:
+            if settings.control_password:
+                await auth.set_password(settings.control_password)
+                logger.info("Control panel password set from CONTROL_PASSWORD")
+            elif not await auth.has_password():
+                log_setup_code(auth)
+
+        app.on_startup.append(set_up_login)
 
     # Set up control routes
     setup_control_routes(

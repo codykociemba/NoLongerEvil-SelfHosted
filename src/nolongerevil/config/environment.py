@@ -39,6 +39,20 @@ class Settings(BaseSettings):
         description="Port for control API (dashboard/automation)",
     )
 
+    # Control panel login
+    control_auth: bool = Field(
+        default=False,
+        description="Require a login for the control panel and control API",
+    )
+    control_password: str | None = Field(
+        default=None,
+        description="Set (or reset) the control panel password at startup",
+    )
+    control_trusted_ingress_ip: str = Field(
+        default="172.30.32.2",
+        description="Home Assistant ingress proxy address; its requests skip the login",
+    )
+
     # TLS configuration
     cert_dir: str | None = Field(
         default=None,
