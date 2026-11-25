@@ -51,7 +51,7 @@ class TestGetSafetyBounds:
     def test_default_bounds(self):
         """Test default bounds when no values provided."""
         bounds = get_safety_bounds()
-        assert bounds.min_celsius == 7.222
+        assert bounds.min_celsius == 4.444
         assert bounds.max_celsius == 35.0
 
     def test_device_values(self):

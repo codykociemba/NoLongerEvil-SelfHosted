@@ -8,7 +8,7 @@ from nolongerevil.lib.types import TemperatureSafetyBounds
 logger = get_logger(__name__)
 
 # Default safety bounds
-DEFAULT_MIN_CELSIUS = 7.222  # 45F
+DEFAULT_MIN_CELSIUS = 4.444  # 40F
 DEFAULT_MAX_CELSIUS = 35.0  # 95F
 
 

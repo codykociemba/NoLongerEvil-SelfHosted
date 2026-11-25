@@ -111,7 +111,7 @@ def build_climate_discovery_payload(
             "preset_mode_state_topic": f"{topic_prefix}/{serial}/ha/preset",
             "preset_modes": HaPreset.all(),
             # Min/max temperature in Celsius (typical Nest range)
-            "min_temp": 9,
+            "min_temp": 4.5,
             "max_temp": 32,
             # Optimistic mode
             "optimistic": False,
@@ -196,13 +196,13 @@ def build_occupancy_binary_sensor_discovery(serial: str, topic_prefix: str) -> d
     """Build Home Assistant discovery payload for occupancy binary sensor."""
     return {
         "unique_id": f"nolongerevil_{serial}_occupancy",
-        "name": "Occupancy",
+        "name": "Home",
         "default_entity_id": f"binary_sensor.nest_{serial}_occupancy",
         "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/occupancy",
         "payload_on": HaPreset.HOME,
         "payload_off": HaPreset.AWAY,
-        "device_class": "occupancy",
+        "device_class": "presence",
         "availability": {
             "topic": f"{topic_prefix}/{serial}/availability",
             "payload_available": "online",

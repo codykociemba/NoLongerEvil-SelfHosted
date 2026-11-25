@@ -21,7 +21,7 @@ class TemperatureTopic(NamedTuple):
 
 # Temperature topics for each mode
 MODE_TEMPERATURE_TOPICS: dict[HaMode, tuple[TemperatureTopic, ...]] = {
-    HaMode.OFF: (),  # No temperature topics when off
+    HaMode.OFF: (TemperatureTopic("target_temperature", "temperature"),),  # HA requires one
     HaMode.HEAT: (TemperatureTopic("target_temperature", "temperature"),),
     HaMode.COOL: (TemperatureTopic("target_temperature", "temperature"),),
     HaMode.HEAT_COOL: (

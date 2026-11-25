@@ -166,5 +166,5 @@ class TemperatureSafetyBounds:
     min_cool: float = 9.0
     max_cool: float = 32.0
     # Generic min/max used by temperature_safety module
-    min_celsius: float = 7.222  # 45F default
+    min_celsius: float = 4.444  # 40F default
     max_celsius: float = 35.0  # 95F default
