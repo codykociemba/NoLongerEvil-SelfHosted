@@ -401,6 +401,18 @@
       font-size: 9px; font-weight: 600; color: var(--text3);
       margin-left: 2px; letter-spacing: 0.2px;
     }
+    .fan-select {
+      padding: 4px 6px; font-size: 10px; font-weight: 650;
+      border: none; border-radius: 7px; cursor: pointer;
+      background: transparent; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .fan-select:hover { color: var(--text); }
+    .humid-ctl {
+      display: flex; align-items: center; gap: 3px;
+      font-size: 10px; font-weight: 600; color: var(--text3);
+    }
+    .humid-ctl .range-value { font-size: 11px; min-width: 30px; }
     .ttt-label {
       font-size: 11px; color: var(--text2); text-align: center;
       margin-top: 1px; font-weight: 600; letter-spacing: 0.2px;
@@ -832,11 +844,31 @@
     }
 
     function setFan(serial, mode) {
-      sendCommand(serial, 'set_fan', mode);
+      // Timer durations must be sent as numbers (seconds)
+      const value = (mode === 'auto' || mode === 'on') ? mode : Number(mode);
+      sendCommand(serial, 'set_fan', value);
       const d = lastDevices.find(x => x.serial === serial);
       if (d) {
-        if (mode === 'on') { d.fan_timer_active = true; }
-        else if (mode === 'auto') { d.fan_timer_active = false; d.fan_timer_timeout = 0; }
+        if (value === 'on') { d.fan_timer_active = true; }
+        else if (value === 'auto') { d.fan_timer_active = false; d.fan_timer_timeout = 0; }
+        else {
+          d.fan_timer_active = true;
+          d.fan_timer_timeout = Math.floor(Date.now() / 1000) + value;
+        }
+        renderDevices(lastDevices);
+      }
+    }
+
+    function adjustHumidity(serial, current, delta) {
+      const target = Math.max(10, Math.min(90, current + delta));
+      sendCommand(serial, 'set_device_setting', {
+        target_humidity: target,
+        target_humidity_enabled: true
+      });
+      const d = lastDevices.find(x => x.serial === serial);
+      if (d) {
+        d.target_humidity = target;
+        d.target_humidity_enabled = true;
         renderDevices(lastDevices);
       }
     }
@@ -1456,6 +1488,26 @@
               '<button class="fan-btn' + (fanActive ? ' active' : '') + '" onclick="setFan(' + q + ',\'on\')" title="' + esc(fanTip) + '">' +
                 '<i class="mdi mdi-fan' + (fanActive ? ' fan-spin' : '') + '"></i> On' + timerLabel +
               '</button>' +
+              '<select class="fan-select" onchange="if(this.value){setFan(' + q + ',this.value);this.value=\'\';}" title="Run the fan for a set time">' +
+                '<option value="">Timer</option>' +
+                '<option value="900">15m</option>' +
+                '<option value="1800">30m</option>' +
+                '<option value="7200">2h</option>' +
+                '<option value="14400">4h</option>' +
+                '<option value="28800">8h</option>' +
+                '<option value="43200">12h</option>' +
+              '</select>' +
+            '</div>';
+        }
+
+        let humidHtml = '';
+        if ((cap.has_humidifier || cap.has_dehumidifier) && d.humidity != null) {
+          const th = d.target_humidity != null ? d.target_humidity : 50;
+          humidHtml =
+            '<div class="humid-ctl" title="Target humidity">' +
+              '<button class="range-btn" onclick="adjustHumidity(' + q + ',' + th + ',-5)" title="Lower target humidity">−</button>' +
+              '<span class="range-value">' + esc(th) + '%</span>' +
+              '<button class="range-btn" onclick="adjustHumidity(' + q + ',' + th + ',5)" title="Raise target humidity">+</button>' +
             '</div>';
         }
 
@@ -1501,6 +1553,7 @@
             '<div class="mode-seg">' + modeBtns + '</div>' +
             '<button class="' + (eco ? 'eco-btn active' : autoEco ? 'eco-btn auto-eco' : 'eco-btn') + '" onclick="toggleEco(' + q + ',' + (eco || autoEco) + ')" title="' + (eco ? 'Eco mode active \u2014 click to resume schedule' : autoEco ? 'Auto-eco (away detected) \u2014 click to resume schedule' : 'Enable eco mode') + '">' +
               '<i class="mdi mdi-home-export-outline"></i> Eco' + (autoEco ? '<span style="font-size:7px;opacity:.6;vertical-align:super;margin-left:1px">auto</span>' : '') + '</button>' +
+            humidHtml +
             '<span class="controls-spacer"></span>' +
             fanHtml +
           '</div>' +
