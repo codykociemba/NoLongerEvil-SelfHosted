@@ -94,6 +94,7 @@ class MqttIntegration(BaseIntegration):
         self._active_client: aiomqtt.Client | None = None
         self._listener_task: asyncio.Task[None] | None = None
         self._connected = False
+        self._last_discovery: dict[str, str] = {}
 
         # Parse configuration with TypeScript-matching defaults
         self._broker_url = self.get_config_value("brokerUrl", "mqtt://localhost:1883")
@@ -157,6 +158,7 @@ class MqttIntegration(BaseIntegration):
                 async with self._client as client:
                     self._active_client = client
                     self._connected = True
+                    self._last_discovery.clear()  # broker may have lost retained configs
                     logger.info("MQTT connected")
 
                     # Subscribe to command topics
@@ -170,7 +172,10 @@ class MqttIntegration(BaseIntegration):
 
                     # Listen for messages
                     async for message in client.messages:
-                        await self._handle_message(client, message)
+                        try:
+                            await self._handle_message(client, message)
+                        except Exception:  # one bad command must not end the listener
+                            logger.exception("Failed to handle MQTT message")
 
             except aiomqtt.MqttError as e:
                 logger.error(f"MQTT connection error: {e}")
@@ -821,7 +826,11 @@ class MqttIntegration(BaseIntegration):
         )
 
         for topic, payload in configs:
-            await client.publish(topic, json.dumps(payload), retain=True)
+            serialized = json.dumps(payload)
+            if self._last_discovery.get(topic) == serialized:
+                continue
+            await client.publish(topic, serialized, retain=True)
+            self._last_discovery[topic] = serialized
 
         ha_mode = nest_mode_to_ha(shared_values.get("target_temperature_type"))
         logger.info(f"Published HA discovery for {serial} (mode: {ha_mode})")
