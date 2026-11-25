@@ -113,7 +113,7 @@ For **Docker Compose**, edit the `environment:` block in `docker-compose.yml`. F
 | `REQUIRE_DEVICE_PAIRING` | `false` | Require entry key pairing before device transport access |
 | `WEATHER_CACHE_TTL_MS` | `600000` | Weather cache duration (ms) |
 | `MAX_SUBSCRIPTIONS_PER_DEVICE` | `100` | Max concurrent subscriptions |
-| `SUSPEND_TIME_MAX` | `600` | Device sleep duration before fallback wake (seconds) |
+| `SUSPEND_TIME_MAX` | `300` | Device sleep duration before fallback wake (seconds, max 350) |
 | `DEFER_DEVICE_WINDOW` | `15` | Delay before device sends updates after local changes (seconds) |
 | `SQLITE3_DB_PATH` | `./data/database.sqlite` | Database file path |
 | `DEBUG_LOGGING` | `false` | Enable detailed request/response logging |

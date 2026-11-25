@@ -18,7 +18,7 @@ services:
       # Set in .env to this host's LAN IP; the thermostat cannot use localhost
       - API_ORIGIN=${API_ORIGIN:?set API_ORIGIN in .env, e.g. http://192.168.1.50:8000}
 
-      # TLS configuration (uncomment if using certificates)
+      # TLS for the device API (uncomment with the certs volume; API_ORIGIN must use https://)
       # - CERT_DIR=/app/certs
 
       # Device pairing requirement (default: false)
@@ -34,9 +34,9 @@ services:
 
       # Subscription configuration
       - MAX_SUBSCRIPTIONS_PER_DEVICE=100
-      # SUSPEND_TIME_MAX: Device sleep duration before fallback wake (default 600s)
-      # Server holds connection for SUSPEND_TIME_MAX + 60s buffer
-      # - SUSPEND_TIME_MAX=600
+      # SUSPEND_TIME_MAX: Device sleep duration before fallback wake (default 300s, max 350s)
+      # Server closes the subscribe connection 10s before this
+      # - SUSPEND_TIME_MAX=300
       # DEFER_DEVICE_WINDOW: Delay before device sends PUT after local changes
       # - DEFER_DEVICE_WINDOW=15
       # DISABLE_DEFER_WINDOW: After server push, disable defer for this duration
