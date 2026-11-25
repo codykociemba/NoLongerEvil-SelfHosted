@@ -125,6 +125,8 @@ async def test_ingress_header_alone_is_not_trusted(client, monkeypatch):
     headers = {"X-Ingress-Path": "/api/hassio_ingress/x"}
     assert (await client.get("/api/devices", headers=headers)).status == 401
     monkeypatch.setattr(settings, "control_trusted_ingress_ip", "127.0.0.1")
+    assert (await client.get("/api/devices", headers=headers)).status == 401  # Not an add-on
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "x")
     assert (await client.get("/api/devices", headers=headers)).status == 200
 
 

@@ -1,5 +1,6 @@
 """Login check for the control panel and control API (CONTROL_AUTH=true)."""
 
+import os
 from collections.abc import Awaitable, Callable
 from urllib.parse import urlparse
 
@@ -31,11 +32,13 @@ def create_control_auth_middleware(
         if request.method == "OPTIONS" or request.path in PUBLIC_PATHS:
             return await handler(request)
 
-        # Home Assistant ingress has already signed the user in. Trust the proxy's
-        # address, not the header, which any client could send.
+        # Home Assistant ingress has already signed the user in. Only inside an
+        # add-on (Supervisor sets SUPERVISOR_TOKEN), and only from the proxy's
+        # address: the header alone can be sent by any client.
         if (
             "X-Ingress-Path" in request.headers
             and request.remote == settings.control_trusted_ingress_ip
+            and os.environ.get("SUPERVISOR_TOKEN")
         ):
             return await handler(request)
 

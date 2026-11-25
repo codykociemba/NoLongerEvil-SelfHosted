@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     )
     control_trusted_ingress_ip: str = Field(
         default="172.30.32.2",
-        description="Home Assistant ingress proxy address; its requests skip the login",
+        description="Home Assistant ingress proxy address; inside the add-on its requests skip the login",
     )
 
     # TLS configuration

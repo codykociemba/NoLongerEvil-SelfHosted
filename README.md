@@ -142,7 +142,7 @@ On first start the server logs a one-time setup link and QR code (`docker compos
 |----------|---------|-------------|
 | `CONTROL_AUTH` | `false` | Require a login for the control panel and control API |
 | `CONTROL_PASSWORD` | - | Set the password at startup instead of using the setup link; also resets a forgotten one |
-| `CONTROL_TRUSTED_INGRESS_IP` | `172.30.32.2` | Home Assistant ingress proxy; its requests skip the login |
+| `CONTROL_TRUSTED_INGRESS_IP` | `172.30.32.2` | Home Assistant ingress proxy; inside the add-on its requests skip the login |
 
 Without HTTPS the password is sent unencrypted when you sign in, so use it on a trusted network or behind an HTTPS reverse proxy.
 
