@@ -36,13 +36,13 @@ docker run -d \
   -p 8000:8000 \
   -p 8082:8082 \
   -e API_ORIGIN=http://YOUR_SERVER_IP:8000 \
-  -v nolongerevil-data:/data \
+  -v nolongerevil-data:/app/data \
   ghcr.io/codykociemba/nolongerevil-selfhosted:latest
 ```
 
 > Replace `YOUR_SERVER_IP` with the LAN IP of the machine running the container. Do not use `localhost` as Nest devices need a reachable IP.
 
-**Unraid / TrueNAS / Portainer users:** Use the image `ghcr.io/codykociemba/nolongerevil-selfhosted:latest`, map host ports `8000` and `8082`, set the `API_ORIGIN` environment variable, and mount a volume to `/data` for persistence.
+**Unraid / TrueNAS / Portainer users:** Use the image `ghcr.io/codykociemba/nolongerevil-selfhosted:latest`, map host ports `8000` and `8082`, set the `API_ORIGIN` environment variable, and mount a volume to `/app/data` for persistence.
 
 ### Using Docker Compose
 
@@ -238,7 +238,7 @@ docker run -d \
   -p 8000:8000 \
   -p 8082:8082 \
   -e API_ORIGIN=http://192.168.1.100:8000 \
-  -v nolongerevil-data:/data \
+  -v nolongerevil-data:/app/data \
   ghcr.io/codykociemba/nolongerevil-selfhosted:latest
 ```
 
@@ -250,7 +250,7 @@ docker run -d \
   -p 8000:8000 \
   -p 8082:8082 \
   -e API_ORIGIN=http://192.168.1.100:8000 \
-  -v nolongerevil-data:/data \
+  -v nolongerevil-data:/app/data \
   nolongerevil-server
 ```
 
