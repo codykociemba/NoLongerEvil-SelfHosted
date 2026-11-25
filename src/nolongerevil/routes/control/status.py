@@ -46,6 +46,7 @@ def format_device_status(
     # Temperature and mode values may be in shared or device objects
     # (matching MQTT integration behavior)
     last_seen = device_availability.get_last_seen(serial)
+    hvac_values = {**device_values, **shared_values}
     status = {
         "serial": serial,
         "api_key": get_device_api_key(serial),
@@ -66,17 +67,17 @@ def format_device_status(
         "mode": shared_values.get("target_temperature_type")
         or device_values.get("target_temperature_type"),
         "hvac": {
-            # HVAC runtime states are in the SHARED bucket, not device
-            "heater": bool(shared_values.get("hvac_heater_state")),
-            "heat_x2": bool(shared_values.get("hvac_heat_x2_state")),
-            "heat_x3": bool(shared_values.get("hvac_heat_x3_state")),
-            "ac": bool(shared_values.get("hvac_ac_state")),
-            "cool_x2": bool(shared_values.get("hvac_cool_x2_state")),
-            "cool_x3": bool(shared_values.get("hvac_cool_x3_state")),
-            "fan": bool(shared_values.get("hvac_fan_state")),
-            "aux_heat": bool(shared_values.get("hvac_aux_heater_state")),
-            "emer_heat": bool(shared_values.get("hvac_emer_heat_state")),
-            "alt_heat": bool(shared_values.get("hvac_alt_heat_state")),
+            # HVAC runtime states are in the SHARED bucket (Gen 2: some in device)
+            "heater": bool(hvac_values.get("hvac_heater_state")),
+            "heat_x2": bool(hvac_values.get("hvac_heat_x2_state")),
+            "heat_x3": bool(hvac_values.get("hvac_heat_x3_state")),
+            "ac": bool(hvac_values.get("hvac_ac_state")),
+            "cool_x2": bool(hvac_values.get("hvac_cool_x2_state")),
+            "cool_x3": bool(hvac_values.get("hvac_cool_x3_state")),
+            "fan": bool(hvac_values.get("hvac_fan_state")),
+            "aux_heat": bool(hvac_values.get("hvac_aux_heater_state")),
+            "emer_heat": bool(hvac_values.get("hvac_emer_heat_state")),
+            "alt_heat": bool(hvac_values.get("hvac_alt_heat_state")),
             # These remain in the device bucket
             "humidifier": bool(device_values.get("humidifier_state")),
             "dehumidifier": bool(device_values.get("dehumidifier_state")),

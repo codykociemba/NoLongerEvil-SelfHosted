@@ -139,7 +139,7 @@ def derive_hvac_action(device_values: dict[str, Any], shared_values: dict[str, A
     """Derive current HVAC action from device state.
 
     IMPORTANT: HVAC state fields (hvac_heater_state, hvac_ac_state, etc.)
-    are in the SHARED object, not the device object!
+    are in the SHARED object, but Gen 2 reports some in the device object.
 
     Args:
         device_values: Device object values
@@ -154,23 +154,25 @@ def derive_hvac_action(device_values: dict[str, Any], shared_values: dict[str, A
     if mode == NestMode.OFF:
         return HaAction.OFF
 
-    # Check heating states (from shared object)
+    hvac_values = {**device_values, **shared_values}
+
+    # Check heating states
     is_heating = (
-        shared_values.get("hvac_heater_state")
-        or shared_values.get("hvac_heat_x2_state")
-        or shared_values.get("hvac_heat_x3_state")
-        or shared_values.get("hvac_aux_heater_state")
-        or shared_values.get("hvac_alt_heat_state")
+        hvac_values.get("hvac_heater_state")
+        or hvac_values.get("hvac_heat_x2_state")
+        or hvac_values.get("hvac_heat_x3_state")
+        or hvac_values.get("hvac_aux_heater_state")
+        or hvac_values.get("hvac_alt_heat_state")
     )
 
     if is_heating:
         return HaAction.HEATING
 
-    # Check cooling states (from shared object)
+    # Check cooling states
     is_cooling = (
-        shared_values.get("hvac_ac_state")
-        or shared_values.get("hvac_cool_x2_state")
-        or shared_values.get("hvac_cool_x3_state")
+        hvac_values.get("hvac_ac_state")
+        or hvac_values.get("hvac_cool_x2_state")
+        or hvac_values.get("hvac_cool_x3_state")
     )
 
     if is_cooling:
