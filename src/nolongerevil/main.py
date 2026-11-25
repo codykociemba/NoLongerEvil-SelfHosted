@@ -11,6 +11,7 @@ from aiohttp import web
 
 from nolongerevil.config import settings
 from nolongerevil.integrations.integration_manager import IntegrationManager
+from nolongerevil.lib.change_source import change_source
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.types import UserInfo
 from nolongerevil.middleware.debug_logger import create_debug_logger_middleware
@@ -18,9 +19,12 @@ from nolongerevil.middleware.device_auth import create_device_auth_middleware
 from nolongerevil.middleware.device_heartbeat import create_device_heartbeat_middleware
 from nolongerevil.middleware.url_normalizer import create_url_normalizer_middleware
 from nolongerevil.routes.control import setup_control_routes
+from nolongerevil.routes.control.history import create_history_routes
+from nolongerevil.routes.control.status import format_device_status
 from nolongerevil.routes.nest import setup_nest_routes
 from nolongerevil.services.device_availability import DeviceAvailability
 from nolongerevil.services.device_state_service import DeviceStateService
+from nolongerevil.services.history import HistoryService, status_reader
 from nolongerevil.services.sqlmodel_service import SQLModelService
 from nolongerevil.services.subscription_manager import SubscriptionManager
 from nolongerevil.services.weather_service import WeatherService
@@ -161,6 +165,7 @@ def create_control_app(
     subscription_manager: SubscriptionManager,
     device_availability: DeviceAvailability,
     storage: SQLModelService | None = None,
+    history: HistoryService | None = None,
 ) -> web.Application:
     """Create the control API application.
 
@@ -196,10 +201,20 @@ def create_control_app(
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
         return response
 
+    # Changes made through this API show as "dashboard" in the history change log
+    @web.middleware
+    async def change_source_middleware(
+        request: web.Request,
+        handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
+    ) -> web.StreamResponse:
+        change_source.set("dashboard")
+        return await handler(request)
+
     app = web.Application(
         middlewares=[
             create_debug_logger_middleware(),  # type: ignore[list-item]
             cors_middleware,
+            change_source_middleware,
         ]
     )
 
@@ -211,6 +226,16 @@ def create_control_app(
         device_availability,
         storage,
     )
+
+    if history:
+
+        def device_names() -> dict[str, str]:
+            return {
+                serial: format_device_status(serial, state_service, device_availability)["name"]
+                for serial in state_service.get_all_serials()
+            }
+
+        create_history_routes(app, history, device_names)
 
     # Health check endpoint
     async def health_check(_request: web.Request) -> web.Response:
@@ -279,6 +304,14 @@ async def run_server() -> None:
     state_service.set_integration_manager(integration_manager)
     device_availability.set_integration_manager(integration_manager)
 
+    history = HistoryService(
+        str(settings.data_dir / "history.sqlite"),
+        status_reader(state_service, device_availability, storage),
+        state_service.get_all_serials,
+    )
+    await history.start()
+    integration_manager.add_state_callback(history.on_state_change)
+
     # Start background services
     await device_availability.start()
     await integration_manager.start()
@@ -296,6 +329,7 @@ async def run_server() -> None:
         subscription_manager,
         device_availability,
         storage,
+        history,
     )
     control_app["integration_manager"] = integration_manager
 
@@ -347,6 +381,7 @@ async def run_server() -> None:
     logger.info("Starting graceful shutdown...")
 
     await integration_manager.stop()
+    await history.stop()
     await device_availability.stop()
 
     await proxy_runner.cleanup()
