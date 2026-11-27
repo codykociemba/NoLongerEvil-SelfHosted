@@ -21,6 +21,7 @@ from nolongerevil.lib.mac_alias import objects_to_device_keys, to_device_object_
 from nolongerevil.lib.types import DeviceObject, DeviceOwner
 from nolongerevil.middleware.device_auth import (
     TIER_PAIRED,
+    TIER_PENDING,
     TIER_UNKNOWN,
     create_device_auth_middleware,
 )
@@ -544,18 +545,33 @@ def _make_device_auth_request(
     return req, req_state
 
 
-def _make_storage(owner_serial: str | None) -> Mock:
-    """Mock SQLModelService that recognizes `owner_serial` as paired (if set)."""
+def _make_storage(
+    owner_serial: str | None = None,
+    owners: dict[str, str] | None = None,
+    entry_key_serial: str | None = None,
+) -> Mock:
+    """Mock SQLModelService.
+
+    `owner_serial` is paired to "user-1"; `owners` maps further serials to
+    user ids. `entry_key_serial` has an active entry key (pending pairing).
+    """
     storage = Mock()
-    owner = (
-        DeviceOwner(serial=owner_serial, user_id="user-1", created_at=datetime.now())
-        if owner_serial
-        else None
+    owner_map = dict(owners or {})
+    if owner_serial:
+        owner_map[owner_serial] = "user-1"
+
+    def get_owner(serial: str) -> DeviceOwner | None:
+        user_id = owner_map.get(serial)
+        if not user_id:
+            return None
+        return DeviceOwner(serial=serial, user_id=user_id, created_at=datetime.now())
+
+    storage.get_device_owner = AsyncMock(side_effect=get_owner)
+    storage.get_entry_key_by_serial = AsyncMock(
+        side_effect=lambda serial: (
+            Mock() if entry_key_serial and serial == entry_key_serial else None
+        )
     )
-    storage.get_device_owner = AsyncMock(
-        side_effect=lambda serial: owner if owner_serial and serial == owner_serial else None
-    )
-    storage.get_entry_key_by_serial = AsyncMock(return_value=None)
     return storage
 
 
@@ -564,8 +580,8 @@ async def test_device_auth_resolves_mac_via_persisted_mapping(
     state_service: DeviceStateService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A device paired under its real serial, but authenticating via MAC,
-    must pass auth using the persisted mac_alias mapping (no in-memory cache
+    """A device paired under its real serial (and its MAC, same user), but
+    authenticating via MAC, must pass auth using the persisted mac_alias mapping (no in-memory cache
     yet — e.g. right after a server restart, before /subscribe runs again)."""
     monkeypatch.setattr(settings, "require_device_pairing", True)
 
@@ -581,7 +597,7 @@ async def test_device_auth_resolves_mac_via_persisted_mapping(
     )
 
     mac_to_serial: dict[str, str] = {}
-    storage = _make_storage(owner_serial=REAL_SERIAL)
+    storage = _make_storage(owners={REAL_SERIAL: "user-1", MAC: "user-1"})
     req, req_state = _make_device_auth_request(state_service, mac_to_serial, storage, MAC)
     handler = AsyncMock(return_value=web.Response(text="ok"))
 
@@ -608,7 +624,7 @@ async def test_device_auth_resolves_mac_via_in_memory_cache(
     monkeypatch.setattr(settings, "require_device_pairing", True)
 
     mac_to_serial = {MAC_LOWER: REAL_SERIAL}
-    storage = _make_storage(owner_serial=REAL_SERIAL)
+    storage = _make_storage(owners={REAL_SERIAL: "user-1", MAC: "user-1"})
     req, req_state = _make_device_auth_request(state_service, mac_to_serial, storage, MAC)
     handler = AsyncMock(return_value=web.Response(text="ok"))
 
@@ -642,3 +658,125 @@ async def test_device_auth_unmapped_mac_with_no_owner_is_unknown(
     assert resp.status == 401
     assert req_state["device_serial"] == MAC
     assert req_state["device_auth_tier"] == TIER_UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# Pairing mode: an unauthenticated session ID must not take over another
+# user's paired device
+# ---------------------------------------------------------------------------
+
+
+async def _auth_with_alias(
+    state_service: DeviceStateService, storage: Mock, path: str = "/nest/transport/put"
+) -> tuple[web.StreamResponse, dict, AsyncMock]:
+    mac_to_serial = {MAC_LOWER: REAL_SERIAL}
+    req, req_state = _make_device_auth_request(state_service, mac_to_serial, storage, MAC)
+    req.path = path
+    handler = AsyncMock(return_value=web.Response(text="ok"))
+    resp = await create_device_auth_middleware()(req, handler)
+    return resp, req_state, handler
+
+
+@pytest.mark.asyncio
+async def test_device_auth_rejects_pending_mac_aliased_to_paired_serial(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A made-up MAC with only an entry key must not get access to a serial
+    someone else has paired."""
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    storage = _make_storage(owners={REAL_SERIAL: "user-1"}, entry_key_serial=MAC)
+
+    resp, req_state, handler = await _auth_with_alias(state_service, storage)
+
+    handler.assert_not_awaited()
+    assert resp.status == 401
+    assert req_state["device_auth_tier"] == TIER_UNKNOWN
+
+
+@pytest.mark.asyncio
+async def test_device_auth_rejects_mac_of_other_user_aliased_to_paired_serial(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    storage = _make_storage(owners={REAL_SERIAL: "user-1", MAC: "user-2"})
+
+    resp, _, handler = await _auth_with_alias(state_service, storage)
+
+    handler.assert_not_awaited()
+    assert resp.status == 401
+
+
+@pytest.mark.asyncio
+async def test_device_auth_accepts_device_paired_under_its_mac(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pairing a MAC-only device records the owner under the MAC; once the
+    alias to its (unowned) real serial exists it must still count as paired."""
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    storage = _make_storage(owners={MAC: "user-1"})
+
+    resp, req_state, handler = await _auth_with_alias(state_service, storage)
+
+    handler.assert_awaited_once()
+    assert resp.status == 200
+    assert req_state["device_serial"] == REAL_SERIAL
+    assert req_state["device_auth_tier"] == TIER_PAIRED
+
+
+@pytest.mark.asyncio
+async def test_device_auth_keeps_pending_mac_pending_after_alias(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A MAC-only device in the middle of pairing (entry key under the MAC)
+    can still subscribe once aliased to its unowned real serial."""
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    storage = _make_storage(entry_key_serial=MAC)
+
+    resp, req_state, handler = await _auth_with_alias(
+        state_service, storage, path="/nest/transport/v7/subscribe"
+    )
+
+    handler.assert_awaited_once()
+    assert resp.status == 200
+    assert req_state["device_auth_tier"] == TIER_PENDING
+
+
+@pytest.mark.asyncio
+async def test_subscribe_does_not_alias_mac_to_serial_owned_by_other_user(
+    state_service: DeviceStateService,
+    subscription_manager: SubscriptionManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    mac_to_serial: dict[str, str] = {}
+    body = {"session": f"{MAC_LOWER}{REAL_SERIAL}", "chunked": False, "objects": []}
+    req = _make_subscribe_request(state_service, subscription_manager, mac_to_serial, body)
+    req.app["storage"] = _make_storage(owners={REAL_SERIAL: "user-1"}, entry_key_serial=MAC)
+
+    resp = await handle_transport_subscribe(req)
+
+    assert resp.status == 200
+    assert mac_to_serial == {}
+    assert state_service.get_object(f"mac_alias.{MAC_LOWER}", "mac_alias") is None
+
+
+@pytest.mark.asyncio
+async def test_subscribe_aliases_mac_to_unowned_serial_in_pairing_mode(
+    state_service: DeviceStateService,
+    subscription_manager: SubscriptionManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    mac_to_serial: dict[str, str] = {}
+    body = {"session": f"{MAC_LOWER}{REAL_SERIAL}", "chunked": False, "objects": []}
+    req = _make_subscribe_request(state_service, subscription_manager, mac_to_serial, body)
+    req.app["storage"] = _make_storage(entry_key_serial=MAC)
+
+    resp = await handle_transport_subscribe(req)
+
+    assert resp.status == 200
+    assert mac_to_serial == {MAC_LOWER: REAL_SERIAL}

@@ -60,6 +60,7 @@ from nolongerevil.config.environment import settings
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.mac_alias import (
     MAC_ALIAS_SERIAL_PREFIX,
+    is_mac_alias_trusted,
     looks_like_mac_serial,
     objects_to_device_keys,
     resolve_mac_alias,
@@ -363,6 +364,11 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
     mac_alias = None
     if session and looks_like_mac_serial(serial):
         extracted = extract_serial_from_session(session, serial)
+        if extracted and not await is_mac_alias_trusted(request, serial, extracted):
+            logger.warning(
+                f"Not aliasing MAC {serial} to {extracted}: serial is owned by another user"
+            )
+            extracted = None
         if extracted:
             logger.debug(f"Resolved MAC-only device {serial} to serial {extracted} via session ID")
             mac_alias = serial.lower()

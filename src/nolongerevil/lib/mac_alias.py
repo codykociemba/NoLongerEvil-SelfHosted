@@ -13,6 +13,8 @@ from typing import Any
 
 from aiohttp import web
 
+from nolongerevil.config.environment import settings
+
 _MAC_SERIAL_PATTERN = re.compile(r"^[0-9A-F]{12}$")
 
 # Prefix used for the persisted "mac_alias.<mac>" bookkeeping object's serial.
@@ -59,6 +61,27 @@ def resolve_mac_alias(request: web.Request, serial: str) -> tuple[str, str | Non
                 return resolved, mac_lower
 
     return serial, None
+
+
+async def is_mac_alias_trusted(request: web.Request, mac: str, real_serial: str) -> bool:
+    """Check whether a MAC-only device may act as `real_serial`.
+
+    The session ID a device sends is not authenticated, so with pairing
+    required a MAC must not take over a serial that someone else owns. The
+    alias is trusted when the real serial has no owner yet, or when the MAC
+    and the real serial belong to the same user. Without pairing (or without
+    storage) there is no ownership to protect.
+    """
+    if not settings.require_device_pairing:
+        return True
+    storage = request.app.get("storage")
+    if not storage:
+        return True
+    real_owner = await storage.get_device_owner(real_serial)
+    if real_owner is None:
+        return True
+    mac_owner = await storage.get_device_owner(mac.upper())
+    return mac_owner is not None and mac_owner.user_id == real_owner.user_id
 
 
 # Buckets a MAC-only device addresses by its MAC rather than by its serial
