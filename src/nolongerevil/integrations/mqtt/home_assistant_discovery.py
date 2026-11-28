@@ -111,7 +111,7 @@ def build_climate_discovery_payload(
             "preset_mode_state_topic": f"{topic_prefix}/{serial}/ha/preset",
             "preset_modes": HaPreset.all(),
             # Min/max temperature in Celsius (typical Nest range)
-            "min_temp": 4.5,
+            "min_temp": 9,
             "max_temp": 32,
             # Optimistic mode
             "optimistic": False,

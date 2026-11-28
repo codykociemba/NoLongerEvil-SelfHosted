@@ -16,8 +16,8 @@ def test_off_mode_advertises_setpoint():
     )
 
 
-def test_min_temp_matches_40f_floor():
-    assert payload("heat")["min_temp"] == 4.5
+def test_min_temp_matches_45f_floor():
+    assert payload("heat")["min_temp"] == 9
 
 
 def test_home_away_is_presence():
