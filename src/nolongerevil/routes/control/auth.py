@@ -76,6 +76,29 @@ def _page(name: str) -> web.Response:
     return web.Response(text=(TEMPLATE_DIR / name).read_text(), content_type="text/html")
 
 
+async def _json_body(request: web.Request) -> dict:
+    """Request body as a JSON object; a malformed body is a 400."""
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(
+            text='{"error": "Request body must be a JSON object"}', content_type="application/json"
+        )
+    return body
+
+
+def _id_param(request: web.Request) -> int:
+    """Numeric {id} from the URL; anything else is a 400."""
+    try:
+        return int(request.match_info["id"])
+    except ValueError:
+        raise web.HTTPBadRequest(
+            text='{"error": "Invalid id"}', content_type="application/json"
+        ) from None
+
+
 def create_auth_routes(app: web.Application, auth: ControlAuth, storage: SQLModelService) -> None:
     async def login_page(_request: web.Request) -> web.Response:
         return _page("login.html")
@@ -86,7 +109,7 @@ def create_auth_routes(app: web.Application, auth: ControlAuth, storage: SQLMode
             return web.json_response(
                 {"error": f"Too many attempts. Try again in {wait // 60 + 1} min."}, status=429
             )
-        body = await request.json()
+        body = await _json_body(request)
         if not await auth.check_password(str(body.get("password", ""))):
             await asyncio.sleep(auth.record_failure(client))
             return web.json_response({"error": "Wrong password"}, status=401)
@@ -94,7 +117,7 @@ def create_auth_routes(app: web.Application, auth: ControlAuth, storage: SQLMode
         return await _sign_in(request, auth, bool(body.get("remember")), web.json_response({}))
 
     async def setup(request: web.Request) -> web.StreamResponse:
-        body = await request.json()
+        body = await _json_body(request)
         password = str(body.get("password", ""))
         if await auth.has_password():
             return web.json_response({"error": "A password is already set"}, status=409)
@@ -142,7 +165,7 @@ def create_auth_routes(app: web.Application, auth: ControlAuth, storage: SQLMode
         )
 
     async def delete_session(request: web.Request) -> web.Response:
-        await auth.delete_sessions(ids=[int(request.match_info["id"])])
+        await auth.delete_sessions(ids=[_id_param(request)])
         return web.json_response({})
 
     async def sign_out_others(request: web.Request) -> web.Response:
@@ -151,7 +174,7 @@ def create_auth_routes(app: web.Application, auth: ControlAuth, storage: SQLMode
         return web.json_response({})
 
     async def change_password(request: web.Request) -> web.Response:
-        body = await request.json()
+        body = await _json_body(request)
         if not await auth.check_password(str(body.get("current", ""))):
             return web.json_response({"error": "Current password is wrong"}, status=401)
         try:
@@ -182,7 +205,7 @@ def create_auth_routes(app: web.Application, auth: ControlAuth, storage: SQLMode
         )
 
     async def create_api_key(request: web.Request) -> web.Response:
-        body = await request.json()
+        body = await _json_body(request)
         raw = "nlapi_" + secrets.token_urlsafe(24)
         await storage.create_api_key(
             APIKey(
@@ -198,7 +221,7 @@ def create_auth_routes(app: web.Application, auth: ControlAuth, storage: SQLMode
         return web.json_response({"key": raw})
 
     async def delete_api_key(request: web.Request) -> web.Response:
-        await storage.delete_api_key(request.match_info["id"])
+        await storage.delete_api_key(str(_id_param(request)))
         return web.json_response({})
 
     async def account_page(_request: web.Request) -> web.Response:

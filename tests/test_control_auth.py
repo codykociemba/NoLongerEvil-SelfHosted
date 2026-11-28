@@ -139,3 +139,13 @@ async def test_login_off_by_default(
     client = await aiohttp_client(app)
     assert (await client.get("/api/devices")).status == 200
     assert (await client.get("/login")).status == 404
+
+
+async def test_bad_body_or_id_is_400(client):
+    await sign_in(client)
+    for path in ("/login", "/setup", "/api/auth/password", "/api/auth/api-keys"):
+        r = await client.post(path, data="not json", headers={"Content-Type": "application/json"})
+        assert r.status == 400, path
+        assert (await client.post(path, json=["a list"])).status == 400, path
+    assert (await client.delete("/api/auth/sessions/abc")).status == 400
+    assert (await client.delete("/api/auth/api-keys/abc")).status == 400
