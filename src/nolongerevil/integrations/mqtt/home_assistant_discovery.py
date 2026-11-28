@@ -192,6 +192,31 @@ def build_outdoor_temperature_sensor_discovery(serial: str, topic_prefix: str) -
     }
 
 
+def build_eco_switch_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
+    """Build Home Assistant discovery payload for Eco mode switch.
+
+    Same control as the eco/away presets (set_away), as a switch so it can be
+    exposed where climate presets are not (e.g. HA HomeKit Bridge).
+    """
+    return {
+        "unique_id": f"nolongerevil_{serial}_eco",
+        "name": "Eco",
+        "default_entity_id": f"switch.nest_{serial}_eco",
+        "device": {"identifiers": [f"nolongerevil_{serial}"]},
+        "state_topic": f"{topic_prefix}/{serial}/ha/eco_switch",
+        "command_topic": f"{topic_prefix}/{serial}/ha/eco_switch/set",
+        "payload_on": "ON",
+        "payload_off": "OFF",
+        "icon": "mdi:leaf",
+        "availability": {
+            "topic": f"{topic_prefix}/{serial}/availability",
+            "payload_available": "online",
+            "payload_not_available": "offline",
+        },
+        "qos": 0,
+    }
+
+
 def build_occupancy_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
     """Build Home Assistant discovery payload for occupancy binary sensor."""
     return {
@@ -233,10 +258,13 @@ def build_fan_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[st
 
 
 def build_leaf_binary_sensor_discovery(serial: str, topic_prefix: str) -> dict[str, Any]:
-    """Build Home Assistant discovery payload for leaf (eco) binary sensor."""
+    """Build Home Assistant discovery payload for leaf binary sensor.
+
+    Reflects the Nest Leaf (energy-saving setpoint), not Eco mode.
+    """
     return {
         "unique_id": f"nolongerevil_{serial}_leaf",
-        "name": "Eco Mode",
+        "name": "Leaf",
         "default_entity_id": f"binary_sensor.nest_{serial}_leaf",
         "device": {"identifiers": [f"nolongerevil_{serial}"]},
         "state_topic": f"{topic_prefix}/{serial}/ha/eco",
@@ -547,6 +575,11 @@ def get_all_discovery_configs(
     )
     configs.append((climate_topic, climate_payload))
 
+    # Eco switch
+    eco_switch_topic = f"{discovery_prefix}/switch/nest_{serial}/eco/config"
+    eco_switch_payload = build_eco_switch_discovery(serial, topic_prefix)
+    configs.append((eco_switch_topic, eco_switch_payload))
+
     # Temperature sensor
     temp_topic = f"{discovery_prefix}/sensor/nest_{serial}/temperature/config"
     temp_payload = build_temperature_sensor_discovery(serial, topic_prefix)
@@ -573,7 +606,7 @@ def get_all_discovery_configs(
         fan_payload = build_fan_binary_sensor_discovery(serial, topic_prefix)
         configs.append((fan_topic, fan_payload))
 
-    # Leaf (eco) binary sensor
+    # Leaf binary sensor
     leaf_topic = f"{discovery_prefix}/binary_sensor/nest_{serial}/leaf/config"
     leaf_payload = build_leaf_binary_sensor_discovery(serial, topic_prefix)
     configs.append((leaf_topic, leaf_payload))
@@ -662,6 +695,7 @@ def get_discovery_removal_topics(
     """
     return [
         f"{discovery_prefix}/climate/nest_{serial}/thermostat/config",
+        f"{discovery_prefix}/switch/nest_{serial}/eco/config",
         f"{discovery_prefix}/sensor/nest_{serial}/temperature/config",
         f"{discovery_prefix}/sensor/nest_{serial}/humidity/config",
         f"{discovery_prefix}/sensor/nest_{serial}/outdoor_temperature/config",
