@@ -101,6 +101,18 @@ async def handle_scan_network(_request: web.Request) -> web.Response:
     return web.json_response({"devices": found, "subnet": str(network)})
 
 
+async def _post_settings(
+    session: aiohttp.ClientSession, url: str, api_key: str | None
+) -> tuple[int, dict]:
+    """POST our endpoint (and optional api_key) to a Nest settings CGI."""
+    payload: dict = {"endpoint": settings.api_origin}
+    if api_key:
+        payload["api_key"] = api_key
+    async with session.post(url, json=payload) as resp:
+        data = await resp.json(content_type=None)
+        return resp.status, data
+
+
 async def handle_configure_nest(request: web.Request) -> web.Response:
     """Handle POST /api/configure-nest — point a discovered Nest device at this server.
 
@@ -123,24 +135,23 @@ async def handle_configure_nest(request: web.Request) -> web.Response:
         return web.json_response({"success": False, "error": "Missing ip"}, status=400)
 
     api_key = body.get("api_key")
-    payload: dict = {"endpoint": settings.api_origin}
-    if api_key:
-        payload["api_key"] = str(api_key).strip()
+    key = str(api_key).strip() if api_key else None
 
     url = f"http://{ip}:8080/cgi-bin/api/settings"
-    logger.info(f"Configuring Nest at {ip} (api_key={'yes' if api_key else 'no'})")
+    logger.info(f"Configuring Nest at {ip} (api_key={'yes' if key else 'no'})")
 
     timeout = aiohttp.ClientTimeout(total=5)
     try:
-        async with (
-            aiohttp.ClientSession(timeout=timeout) as session,
-            session.post(url, json=payload) as resp,
-        ):
-            data = await resp.json(content_type=None)
-            if resp.status == 200:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            status, data = await _post_settings(session, url, key)
+            # The device compares the key case-sensitively. Keys used to be sent
+            # upper-cased, so retry once that way for a key typed in lowercase.
+            if status == 401 and key and key.upper() != key:
+                status, data = await _post_settings(session, url, key.upper())
+            if status == 200:
                 logger.info(f"Configured {ip}: {data.get('device_name')}")
                 return web.json_response({"success": True, "device_name": data.get("device_name")})
-            elif resp.status == 401:
+            elif status == 401:
                 return web.json_response({"success": False, "auth_required": True}, status=401)
             else:
                 return web.json_response(
@@ -148,7 +159,7 @@ async def handle_configure_nest(request: web.Request) -> web.Response:
                         "success": False,
                         "error": data.get("status", "Unknown error"),
                     },
-                    status=resp.status,
+                    status=status,
                 )
     except aiohttp.ClientError as exc:
         logger.warning(f"Failed to configure Nest at {ip}: {exc}")
