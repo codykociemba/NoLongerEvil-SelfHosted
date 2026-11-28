@@ -566,7 +566,19 @@ def _make_storage(
             return None
         return DeviceOwner(serial=serial, user_id=user_id, created_at=datetime.now())
 
+    def set_owner(owner: DeviceOwner) -> None:
+        owner_map[owner.serial] = owner.user_id
+
+    def delete_owner(serial: str, user_id: str) -> bool:
+        if owner_map.get(serial) != user_id:
+            return False
+        del owner_map[serial]
+        return True
+
+    storage.owner_map = owner_map
     storage.get_device_owner = AsyncMock(side_effect=get_owner)
+    storage.set_device_owner = AsyncMock(side_effect=set_owner)
+    storage.delete_device_owner = AsyncMock(side_effect=delete_owner)
     storage.get_entry_key_by_serial = AsyncMock(
         side_effect=lambda serial: (
             Mock() if entry_key_serial and serial == entry_key_serial else None
@@ -780,3 +792,120 @@ async def test_subscribe_aliases_mac_to_unowned_serial_in_pairing_mode(
 
     assert resp.status == 200
     assert mac_to_serial == {MAC_LOWER: REAL_SERIAL}
+
+
+# ---------------------------------------------------------------------------
+# Pairing mode: a device paired under its MAC moves its owner record to the
+# real serial once the alias is trusted
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_device_auth_moves_owner_from_mac_to_unowned_real_serial(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    storage = _make_storage(owners={MAC: "user-1"})
+
+    resp, req_state, handler = await _auth_with_alias(state_service, storage)
+
+    handler.assert_awaited_once()
+    assert resp.status == 200
+    assert req_state["device_auth_tier"] == TIER_PAIRED
+    assert storage.owner_map == {REAL_SERIAL: "user-1"}
+
+
+@pytest.mark.asyncio
+async def test_device_auth_drops_mac_owner_when_real_serial_has_same_owner(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    storage = _make_storage(owners={MAC: "user-1", REAL_SERIAL: "user-1"})
+
+    resp, req_state, handler = await _auth_with_alias(state_service, storage)
+
+    handler.assert_awaited_once()
+    assert req_state["device_auth_tier"] == TIER_PAIRED
+    assert storage.owner_map == {REAL_SERIAL: "user-1"}
+    storage.set_device_owner.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_device_auth_never_overwrites_owner_of_real_serial(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The real serial belongs to someone else: the request is refused and
+    neither owner record is touched."""
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    storage = _make_storage(owners={MAC: "user-2", REAL_SERIAL: "user-1"})
+
+    resp, _, handler = await _auth_with_alias(state_service, storage)
+
+    handler.assert_not_awaited()
+    assert resp.status == 401
+    assert storage.owner_map == {MAC: "user-2", REAL_SERIAL: "user-1"}
+    storage.set_device_owner.assert_not_awaited()
+    storage.delete_device_owner.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_device_auth_pending_mac_keeps_entry_key_and_no_owner(
+    state_service: DeviceStateService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    storage = _make_storage(entry_key_serial=MAC)
+
+    resp, req_state, handler = await _auth_with_alias(
+        state_service, storage, path="/nest/transport/v7/subscribe"
+    )
+
+    handler.assert_awaited_once()
+    assert req_state["device_auth_tier"] == TIER_PENDING
+    assert storage.owner_map == {}
+    storage.set_device_owner.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_subscribe_moves_owner_from_mac_to_real_serial_in_pairing_mode(
+    state_service: DeviceStateService,
+    subscription_manager: SubscriptionManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    mac_to_serial: dict[str, str] = {}
+    body = {"session": f"{MAC_LOWER}{REAL_SERIAL}", "chunked": False, "objects": []}
+    req = _make_subscribe_request(state_service, subscription_manager, mac_to_serial, body)
+    storage = _make_storage(owners={MAC: "user-1"})
+    req.app["storage"] = storage
+
+    resp = await handle_transport_subscribe(req)
+
+    assert resp.status == 200
+    assert mac_to_serial == {MAC_LOWER: REAL_SERIAL}
+    assert storage.owner_map == {REAL_SERIAL: "user-1"}
+
+
+@pytest.mark.asyncio
+async def test_subscribe_leaves_owners_alone_when_real_serial_owned_by_other_user(
+    state_service: DeviceStateService,
+    subscription_manager: SubscriptionManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "require_device_pairing", True)
+    mac_to_serial: dict[str, str] = {}
+    body = {"session": f"{MAC_LOWER}{REAL_SERIAL}", "chunked": False, "objects": []}
+    req = _make_subscribe_request(state_service, subscription_manager, mac_to_serial, body)
+    storage = _make_storage(owners={MAC: "user-2", REAL_SERIAL: "user-1"})
+    req.app["storage"] = storage
+
+    resp = await handle_transport_subscribe(req)
+
+    assert resp.status == 200
+    assert mac_to_serial == {}
+    assert storage.owner_map == {MAC: "user-2", REAL_SERIAL: "user-1"}
+    storage.set_device_owner.assert_not_awaited()
+    storage.delete_device_owner.assert_not_awaited()

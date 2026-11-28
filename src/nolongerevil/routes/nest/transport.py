@@ -60,6 +60,7 @@ from nolongerevil.config.environment import settings
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.mac_alias import (
     MAC_ALIAS_SERIAL_PREFIX,
+    adopt_mac_ownership,
     is_mac_alias_trusted,
     looks_like_mac_serial,
     objects_to_device_keys,
@@ -375,6 +376,7 @@ async def handle_transport_subscribe(request: web.Request) -> web.StreamResponse
             real_serial = extracted
             request.app["mac_to_serial"][mac_alias] = real_serial
             serial = real_serial
+            await adopt_mac_ownership(request, mac_alias, real_serial)
             # Persist MAC->serial mapping so PUT handler survives restarts
             await state_service.upsert_object(
                 DeviceObject(

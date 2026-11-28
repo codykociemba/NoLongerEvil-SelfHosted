@@ -14,6 +14,7 @@ from typing import Any
 from aiohttp import web
 
 from nolongerevil.config.environment import settings
+from nolongerevil.lib.types import DeviceOwner
 
 _MAC_SERIAL_PATTERN = re.compile(r"^[0-9A-F]{12}$")
 
@@ -82,6 +83,35 @@ async def is_mac_alias_trusted(request: web.Request, mac: str, real_serial: str)
         return True
     mac_owner = await storage.get_device_owner(mac.upper())
     return mac_owner is not None and mac_owner.user_id == real_owner.user_id
+
+
+async def adopt_mac_ownership(request: web.Request, mac: str, real_serial: str) -> None:
+    """Move a MAC-only device's owner record to its real serial.
+
+    A MAC-only device pairs under its MAC, but once the alias is known the
+    rest of the server looks the owner up under the real serial. Call this
+    only after is_mac_alias_trusted() passed. An existing owner of the real
+    serial is never overwritten.
+    """
+    storage = request.app.get("storage")
+    if not storage:
+        return
+    mac_upper = mac.upper()
+    mac_owner = await storage.get_device_owner(mac_upper)
+    if mac_owner is None:
+        return
+    real_owner = await storage.get_device_owner(real_serial)
+    if real_owner is None:
+        await storage.set_device_owner(
+            DeviceOwner(
+                serial=real_serial,
+                user_id=mac_owner.user_id,
+                created_at=mac_owner.created_at,
+            )
+        )
+    elif real_owner.user_id != mac_owner.user_id:
+        return
+    await storage.delete_device_owner(mac_upper, mac_owner.user_id)
 
 
 # Buckets a MAC-only device addresses by its MAC rather than by its serial

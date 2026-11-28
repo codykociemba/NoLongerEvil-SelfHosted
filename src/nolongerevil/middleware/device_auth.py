@@ -16,7 +16,11 @@ from aiohttp import web
 
 from nolongerevil.config.environment import settings
 from nolongerevil.lib.logger import get_logger
-from nolongerevil.lib.mac_alias import is_mac_alias_trusted, resolve_mac_alias
+from nolongerevil.lib.mac_alias import (
+    adopt_mac_ownership,
+    is_mac_alias_trusted,
+    resolve_mac_alias,
+)
 from nolongerevil.lib.serial_parser import (
     extract_basic_auth_password,
     extract_serial_from_basic_auth,
@@ -124,6 +128,8 @@ def create_device_auth_middleware() -> Callable[
                 {"error": "Device not authorized. Complete pairing first."},
                 status=401,
             )
+        if mac_alias:
+            await adopt_mac_ownership(request, mac_serial, serial)
 
         # A MAC-only device pairs under its MAC (entry key and owner are recorded
         # under the MAC), so check both the real serial and the MAC.
