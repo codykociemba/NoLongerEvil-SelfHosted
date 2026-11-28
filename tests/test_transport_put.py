@@ -271,3 +271,76 @@ async def test_put_does_not_access_subscription_manager(
     # If the handler tried to access request.app["subscription_manager"],
     # it would KeyError on our plain dict.  Reaching here means it didn't.
     assert "subscription_manager" not in spy_app
+
+
+# ---------------------------------------------------------------------------
+# 8. Device leaving manual eco clears the server's manual_eco_all
+# ---------------------------------------------------------------------------
+
+STRUCTURE_KEY = "structure.default"
+ECO_ON_AT = 1_790_202_030
+
+
+async def _seed_manual_eco(state_service: DeviceStateService) -> None:
+    await state_service.upsert_object(
+        DeviceObject(
+            serial=SERIAL,
+            object_key=STRUCTURE_KEY,
+            object_revision=3,
+            object_timestamp=ECO_ON_AT * 1000,
+            value={"manual_eco_all": True, "manual_eco_timestamp": ECO_ON_AT},
+            updated_at=datetime.now(),
+        )
+    )
+
+
+async def _put_eco(state_service: DeviceStateService, mode: str, changed_at: int) -> None:
+    await _put(
+        state_service,
+        [
+            {
+                "object_key": f"device.{SERIAL}",
+                "value": {"eco": {"mode": mode, "mode_update_timestamp": changed_at}},
+            }
+        ],
+    )
+
+
+def _manual_eco_all(state_service: DeviceStateService) -> bool:
+    return state_service.get_object(SERIAL, STRUCTURE_KEY).value["manual_eco_all"]
+
+
+@pytest.mark.asyncio
+async def test_device_exit_from_manual_eco_clears_flag(
+    state_service: DeviceStateService,
+) -> None:
+    """Setpoint change on the device ends eco; server must follow."""
+    await _seed_manual_eco(state_service)
+
+    await _put_eco(state_service, "schedule", ECO_ON_AT + 76)
+
+    assert _manual_eco_all(state_service) is False
+    assert state_service.get_object(SERIAL, STRUCTURE_KEY).object_revision == 4
+
+
+@pytest.mark.asyncio
+async def test_report_older_than_eco_on_keeps_flag(
+    state_service: DeviceStateService,
+) -> None:
+    """A schedule report from before the Eco-on command must not undo it."""
+    await _seed_manual_eco(state_service)
+
+    await _put_eco(state_service, "schedule", ECO_ON_AT - 1400)
+
+    assert _manual_eco_all(state_service) is True
+
+
+@pytest.mark.asyncio
+async def test_device_in_manual_eco_keeps_flag(
+    state_service: DeviceStateService,
+) -> None:
+    await _seed_manual_eco(state_service)
+
+    await _put_eco(state_service, "manual-eco", ECO_ON_AT + 3)
+
+    assert _manual_eco_all(state_service) is True
