@@ -41,13 +41,13 @@ ENV SQLITE3_DB_PATH=/app/data/database.sqlite
 ENV DEBUG_LOGS_DIR=/app/data/debug-logs
 
 # Expose ports
-# 80/443: Device API (Nest protocol)
-# 8081: Control API (dashboard/automation)
-EXPOSE 80 443 8081
+# 8000: Device API (Nest protocol)
+# 8082: Control API (dashboard/automation)
+EXPOSE 8000 8082
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8082/health')" || exit 1
 
 # Run the server
 CMD ["python", "-m", "nolongerevil.main"]

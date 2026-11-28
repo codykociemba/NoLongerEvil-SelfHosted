@@ -36,23 +36,26 @@ docker run -d \
   -p 8000:8000 \
   -p 8082:8082 \
   -e API_ORIGIN=http://YOUR_SERVER_IP:8000 \
-  -v nolongerevil-data:/data \
+  -v nolongerevil-data:/app/data \
   ghcr.io/codykociemba/nolongerevil-selfhosted:latest
 ```
 
 > Replace `YOUR_SERVER_IP` with the LAN IP of the machine running the container. Do not use `localhost` as Nest devices need a reachable IP.
 
-**Unraid / TrueNAS / Portainer users:** Use the image `ghcr.io/codykociemba/nolongerevil-selfhosted:latest`, map host ports `8000` and `8082`, set the `API_ORIGIN` environment variable, and mount a volume to `/data` for persistence.
+**Unraid / TrueNAS / Portainer users:** Use the image `ghcr.io/codykociemba/nolongerevil-selfhosted:latest`, map host ports `8000` and `8082`, set the `API_ORIGIN` environment variable, and mount a volume to `/app/data` for persistence.
 
 ### Using Docker Compose
 
 1. Clone the repository:
    ```bash
    git clone https://github.com/codykociemba/NoLongerEvil-SelfHosted.git
-   cd nolongerevil-selfhosted
+   cd NoLongerEvil-SelfHosted
    ```
 
-2. Edit `docker-compose.yml` with your settings (network, ports, environment variables).
+2. Set the LAN IP of this machine (not `localhost`):
+   ```bash
+   echo "API_ORIGIN=http://YOUR_SERVER_IP:8000" > .env
+   ```
 
 3. Start the server:
    ```bash
@@ -110,7 +113,7 @@ For **Docker Compose**, edit the `environment:` block in `docker-compose.yml`. F
 | `REQUIRE_DEVICE_PAIRING` | `false` | Require entry key pairing before device transport access |
 | `WEATHER_CACHE_TTL_MS` | `600000` | Weather cache duration (ms) |
 | `MAX_SUBSCRIPTIONS_PER_DEVICE` | `100` | Max concurrent subscriptions |
-| `SUSPEND_TIME_MAX` | `600` | Device sleep duration before fallback wake (seconds) |
+| `SUSPEND_TIME_MAX` | `300` | Device sleep duration before fallback wake (seconds, max 350) |
 | `DEFER_DEVICE_WINDOW` | `15` | Delay before device sends updates after local changes (seconds) |
 | `SQLITE3_DB_PATH` | `./data/database.sqlite` | Database file path |
 | `DEBUG_LOGGING` | `false` | Enable detailed request/response logging |
@@ -238,7 +241,7 @@ docker run -d \
   -p 8000:8000 \
   -p 8082:8082 \
   -e API_ORIGIN=http://192.168.1.100:8000 \
-  -v nolongerevil-data:/data \
+  -v nolongerevil-data:/app/data \
   ghcr.io/codykociemba/nolongerevil-selfhosted:latest
 ```
 
@@ -250,7 +253,7 @@ docker run -d \
   -p 8000:8000 \
   -p 8082:8082 \
   -e API_ORIGIN=http://192.168.1.100:8000 \
-  -v nolongerevil-data:/data \
+  -v nolongerevil-data:/app/data \
   nolongerevil-server
 ```
 
