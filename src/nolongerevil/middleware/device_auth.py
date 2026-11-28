@@ -16,6 +16,11 @@ from aiohttp import web
 
 from nolongerevil.config.environment import settings
 from nolongerevil.lib.logger import get_logger
+from nolongerevil.lib.mac_alias import (
+    adopt_mac_ownership,
+    is_mac_alias_trusted,
+    resolve_mac_alias,
+)
 from nolongerevil.lib.serial_parser import (
     extract_basic_auth_password,
     extract_serial_from_basic_auth,
@@ -104,6 +109,14 @@ def create_device_auth_middleware() -> Callable[
         if not serial:
             return web.json_response({"error": "Device serial required"}, status=400)
 
+        # Resolve MAC-only devices (e.g. Display-2.12) to their real serial
+        # before checking ownership/entry-key. These devices authenticate
+        # with their MAC on every request, so without this a paired device
+        # would look unknown here and get a 401 on every request after the
+        # one that established the alias.
+        mac_serial = serial
+        serial, mac_alias = resolve_mac_alias(request, serial)
+
         request["device_serial"] = serial
 
         # Determine auth tier
@@ -114,14 +127,34 @@ def create_device_auth_middleware() -> Callable[
             request["device_auth_tier"] = TIER_PAIRED
             return await handler(request)
 
+        # A MAC alias must not hand someone else's paired device to this MAC
+        if mac_alias and not await is_mac_alias_trusted(request, mac_serial, serial):
+            logger.warning(f"MAC {mac_serial} is aliased to {serial} owned by another user → 401")
+            request["device_auth_tier"] = TIER_UNKNOWN
+            return web.json_response(
+                {"error": "Device not authorized. Complete pairing first."},
+                status=401,
+            )
+        if mac_alias:
+            await adopt_mac_ownership(request, mac_serial, serial)
+
+        # A MAC-only device pairs under its MAC (entry key and owner are recorded
+        # under the MAC), so check both the real serial and the MAC.
+        auth_serials = [serial, mac_serial] if mac_alias else [serial]
+
         # Check ownership first (most common case for paired devices)
-        owner = await storage.get_device_owner(serial)
-        if owner:
-            request["device_auth_tier"] = TIER_PAIRED
-            return await handler(request)
+        for auth_serial in auth_serials:
+            owner = await storage.get_device_owner(auth_serial)
+            if owner:
+                request["device_auth_tier"] = TIER_PAIRED
+                return await handler(request)
 
         # Check for active entry key (pending pairing)
-        entry_key = await storage.get_entry_key_by_serial(serial)
+        entry_key = None
+        for auth_serial in auth_serials:
+            entry_key = await storage.get_entry_key_by_serial(auth_serial)
+            if entry_key:
+                break
         if entry_key:
             request["device_auth_tier"] = TIER_PENDING
             # Pending devices can subscribe (to receive pairing buckets)

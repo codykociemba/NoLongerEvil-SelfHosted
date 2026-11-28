@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 
 from aiohttp import web
 
+from nolongerevil.lib.mac_alias import resolve_mac_alias
 from nolongerevil.lib.serial_parser import extract_serial_from_request
 from nolongerevil.services.device_availability import DeviceAvailability
 
@@ -38,6 +39,11 @@ def create_device_heartbeat_middleware(
         serial = extract_serial_from_request(request)
 
         if serial:
+            # Resolve MAC-only devices to their real serial. Falls back to the
+            # persisted mapping (and warms the in-memory cache) if this is the
+            # first request after a restart, so the heartbeat isn't attributed
+            # to the MAC instead of the real device.
+            serial, _ = resolve_mac_alias(request, serial)
             await device_availability.mark_device_seen(serial)
 
         return await handler(request)

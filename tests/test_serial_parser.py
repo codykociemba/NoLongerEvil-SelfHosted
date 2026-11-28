@@ -2,6 +2,7 @@
 
 from nolongerevil.lib.serial_parser import (
     extract_serial_from_basic_auth,
+    extract_serial_from_session,
     sanitize_serial,
 )
 
@@ -67,3 +68,77 @@ class TestExtractSerialFromBasicAuth:
         header = f"Basic {encoded}"
 
         assert extract_serial_from_basic_auth(header) is None
+
+
+class TestExtractSerialFromSession:
+    """Tests for extract_serial_from_session function."""
+
+    MAC = "11b2334455d6"
+    SERIAL = "02AA01AB501203EQ"
+
+    def test_extracts_serial_with_lowercase_mac(self):
+        """Session ID is <mac><serial>, mac matches lowercase exactly."""
+        session_id = self.MAC + self.SERIAL
+        assert extract_serial_from_session(session_id, self.MAC) == self.SERIAL
+
+    def test_extracts_serial_with_uppercase_mac_argument(self):
+        """MAC argument may be uppercase; comparison is case-insensitive."""
+        session_id = self.MAC + self.SERIAL
+        assert extract_serial_from_session(session_id, self.MAC.upper()) == self.SERIAL
+
+    def test_extracts_serial_with_uppercase_session_prefix(self):
+        """Session ID's MAC prefix may be uppercase."""
+        session_id = self.MAC.upper() + self.SERIAL
+        assert extract_serial_from_session(session_id, self.MAC) == self.SERIAL
+
+    def test_mac_with_colons_is_normalized(self):
+        """MAC argument with colon separators is stripped before matching."""
+        mac_with_colons = "11:b2:33:44:55:d6"
+        session_id = self.MAC + self.SERIAL
+        assert extract_serial_from_session(session_id, mac_with_colons) == self.SERIAL
+
+    def test_session_does_not_start_with_mac(self):
+        """Session ID without the MAC prefix yields None."""
+        session_id = "ffffffffffff" + self.SERIAL
+        assert extract_serial_from_session(session_id, self.MAC) is None
+
+    def test_session_id_equals_mac_exactly(self):
+        """Nothing left after stripping the MAC prefix yields None."""
+        assert extract_serial_from_session(self.MAC, self.MAC) is None
+
+    def test_mac_too_short(self):
+        """MAC shorter than 12 hex chars yields None."""
+        assert extract_serial_from_session(self.MAC + self.SERIAL, "11b2334455") is None
+
+    def test_mac_too_long(self):
+        """MAC longer than 12 hex chars yields None."""
+        assert extract_serial_from_session(self.MAC + self.SERIAL, self.MAC + "ab") is None
+
+    def test_empty_session_id(self):
+        """Empty session ID yields None."""
+        assert extract_serial_from_session("", self.MAC) is None
+
+    def test_empty_mac(self):
+        """Empty MAC yields None."""
+        assert extract_serial_from_session(self.MAC + self.SERIAL, "") is None
+
+    def test_extracted_serial_is_uppercased(self):
+        """A lowercase suffix is normalized to uppercase, like other serial sources."""
+        session_id = self.MAC + self.SERIAL.lower()
+        assert extract_serial_from_session(session_id, self.MAC) == self.SERIAL
+
+    def test_extracted_serial_strips_invalid_characters(self):
+        """Non-alphanumeric characters (e.g. path separators) are stripped so
+        the result can't be used to escape state keys / MQTT topic paths."""
+        session_id = self.MAC + "02AA01/../AB501203EQ"
+        assert extract_serial_from_session(session_id, self.MAC) == self.SERIAL
+
+    def test_extracted_serial_too_short_after_sanitization(self):
+        """If sanitization leaves fewer than MIN_SERIAL_LENGTH chars, yields None."""
+        session_id = self.MAC + "../.."
+        assert extract_serial_from_session(session_id, self.MAC) is None
+
+    def test_extracted_serial_all_invalid_characters(self):
+        """A suffix made entirely of separators yields None, not an empty serial."""
+        session_id = self.MAC + "////////////"
+        assert extract_serial_from_session(session_id, self.MAC) is None

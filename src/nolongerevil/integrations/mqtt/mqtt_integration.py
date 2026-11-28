@@ -235,8 +235,8 @@ class MqttIntegration(BaseIntegration):
         serial, command = match.groups()
         logger.info(f"HA Command: {serial}/{command} = {payload}")
 
-        device_obj = self._state_service.get_object(serial, f"device.{serial}")
-        shared_obj = self._state_service.get_object(serial, f"shared.{serial}")
+        device_obj = self._state_service.get_object_by_prefix(serial, "device.")
+        shared_obj = self._state_service.get_object_by_prefix(serial, "shared.")
 
         if not device_obj or not shared_obj:
             logger.warning(f"Device {serial} not fully initialized")
@@ -398,12 +398,13 @@ class MqttIntegration(BaseIntegration):
 
         from nolongerevil.lib.types import DeviceObject
 
-        object_key = f"{object_type}.{serial}"
-        current_obj = self._state_service.get_object(serial, object_key)
+        current_obj = self._state_service.get_object_by_prefix(serial, f"{object_type}.")
 
         if not current_obj:
-            logger.warning(f"Object not found: {object_key}")
+            logger.warning(f"Object not found: {object_type}.{serial}")
             return
+
+        object_key = current_obj.object_key
 
         new_value = {**current_obj.value, **values}
         new_revision = current_obj.object_revision + 1
@@ -434,7 +435,7 @@ class MqttIntegration(BaseIntegration):
 
         from nolongerevil.lib.types import DeviceObject
 
-        object_key = f"device.{serial}"
+        object_key = current_obj.object_key
         new_value = {**current_obj.value, field: value}
         new_revision = current_obj.object_revision + 1
         new_timestamp = int(time.time() * 1000)
@@ -523,8 +524,8 @@ class MqttIntegration(BaseIntegration):
         """Publish Home Assistant formatted state for a device."""
         prefix = self._topic_prefix
 
-        device_obj = self._state_service.get_object(serial, f"device.{serial}")
-        shared_obj = self._state_service.get_object(serial, f"shared.{serial}")
+        device_obj = self._state_service.get_object_by_prefix(serial, "device.")
+        shared_obj = self._state_service.get_object_by_prefix(serial, "shared.")
 
         if not device_obj or not shared_obj:
             logger.warning(f"Cannot publish HA state for {serial} - missing objects")
@@ -764,10 +765,10 @@ class MqttIntegration(BaseIntegration):
         if fan_timeout and isinstance(fan_timeout, (int, float)):
             now_seconds = int(time.time())
             if fan_timeout > now_seconds:
-                minutes_remaining = max(0, (fan_timeout - now_seconds) // 60)
+                fan_minutes_remaining = max(0, (fan_timeout - now_seconds) // 60)
                 await client.publish(
                     f"{prefix}/{serial}/ha/fan_timer_remaining",
-                    str(minutes_remaining),
+                    str(fan_minutes_remaining),
                     retain=True,
                 )
             else:
@@ -828,8 +829,8 @@ class MqttIntegration(BaseIntegration):
             client: MQTT client
             serial: Device serial
         """
-        device_obj = self._state_service.get_object(serial, f"device.{serial}")
-        shared_obj = self._state_service.get_object(serial, f"shared.{serial}")
+        device_obj = self._state_service.get_object_by_prefix(serial, "device.")
+        shared_obj = self._state_service.get_object_by_prefix(serial, "shared.")
 
         device_values = device_obj.value if device_obj else {}
         shared_values = shared_obj.value if shared_obj else {}
@@ -873,8 +874,8 @@ class MqttIntegration(BaseIntegration):
 
         for serial in serials:
             try:
-                device_obj = self._state_service.get_object(serial, f"device.{serial}")
-                shared_obj = self._state_service.get_object(serial, f"shared.{serial}")
+                device_obj = self._state_service.get_object_by_prefix(serial, "device.")
+                shared_obj = self._state_service.get_object_by_prefix(serial, "shared.")
 
                 if device_obj:
                     # Publish raw state

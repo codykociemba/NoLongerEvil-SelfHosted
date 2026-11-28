@@ -86,6 +86,71 @@ class TestDeviceStateService:
         assert "TEST87654321" in serials
 
     @pytest.mark.asyncio
+    async def test_get_all_serials_excludes_mac_alias_records(self, state_service: DeviceStateService):
+        """mac_alias.<mac> bookkeeping records aren't real devices."""
+        device_obj = DeviceObject(
+            serial="TEST12345678",
+            object_key="device.TEST12345678",
+            object_revision=1,
+            object_timestamp=1234567890,
+            value={"target_temperature": 21.0},
+            updated_at=datetime.now(),
+        )
+        alias_obj = DeviceObject(
+            serial="mac_alias.11b2334455d6",
+            object_key="mac_alias",
+            object_revision=1,
+            object_timestamp=1234567890,
+            value={"serial": "TEST12345678"},
+            updated_at=datetime.now(),
+        )
+
+        await state_service.upsert_object(device_obj)
+        await state_service.upsert_object(alias_obj)
+
+        serials = state_service.get_all_serials()
+
+        assert serials == ["TEST12345678"]
+
+    @pytest.mark.asyncio
+    async def test_get_object_by_prefix_finds_differently_cased_key(
+        self, state_service: DeviceStateService
+    ):
+        """get_object_by_prefix finds an object regardless of the casing used
+        in the rest of its object_key (e.g. MAC-alias-migrated buckets)."""
+        obj = DeviceObject(
+            serial="TEST12345678",
+            object_key="schedule.test12345678",
+            object_revision=1,
+            object_timestamp=1234567890,
+            value={"ver": 2},
+            updated_at=datetime.now(),
+        )
+        await state_service.upsert_object(obj)
+
+        found = state_service.get_object_by_prefix("TEST12345678", "schedule.")
+
+        assert found is not None
+        assert found.object_key == "schedule.test12345678"
+
+    @pytest.mark.asyncio
+    async def test_get_object_by_prefix_no_match_returns_none(
+        self, state_service: DeviceStateService
+    ):
+        """get_object_by_prefix returns None when no object_key matches the prefix."""
+        obj = DeviceObject(
+            serial="TEST12345678",
+            object_key="device.test12345678",
+            object_revision=1,
+            object_timestamp=1234567890,
+            value={},
+            updated_at=datetime.now(),
+        )
+        await state_service.upsert_object(obj)
+
+        assert state_service.get_object_by_prefix("TEST12345678", "schedule.") is None
+
+    @pytest.mark.asyncio
     async def test_has_updates_since(self, state_service: DeviceStateService):
         """Test checking for updates since a revision."""
         obj = DeviceObject(
