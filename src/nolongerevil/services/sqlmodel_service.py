@@ -860,10 +860,18 @@ class SQLModelService(AbstractDeviceStateManager):
             if not weather:
                 return
 
+            location_key = f"{postal_code},{country}"
+            weather_info = weather.data.get(location_key)
+            if not isinstance(weather_info, dict):
+                return
+            current_weather = weather_info.get("current")
+            if not isinstance(current_weather, dict):
+                return
+
             now = now_ms()
             weather_data = {
-                "current": weather.data.get("current"),
-                "location": weather.data.get("location"),
+                "current": current_weather,
+                "location": weather_info.get("location"),
                 "updatedAt": now,
             }
 

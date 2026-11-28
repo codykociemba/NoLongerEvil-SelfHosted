@@ -26,6 +26,14 @@ async def handle_weather(request: web.Request) -> web.Response:
     # Extract query parameters
     postal_code = request.query.get("postal_code")
     country = request.query.get("country")
+    legacy_query = request.query.get("query")
+    if legacy_query:
+        query_postal_code, separator, query_country = legacy_query.partition(",")
+        if separator:
+            query_postal_code = query_postal_code.strip()
+            query_country = query_country.strip()
+            postal_code = postal_code or query_postal_code
+            country = country or query_country
     query_string = request.query_string
 
     # Get weather data (cached or fresh)
