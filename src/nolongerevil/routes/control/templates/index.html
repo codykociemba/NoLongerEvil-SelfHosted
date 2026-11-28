@@ -860,15 +860,13 @@
     }
 
     function adjustHumidity(serial, current, delta) {
-      const target = Math.max(10, Math.min(90, current + delta));
+      const target = Math.max(10, Math.min(60, current + delta));
       sendCommand(serial, 'set_device_setting', {
-        target_humidity: target,
-        target_humidity_enabled: true
+        target_humidity: target
       });
       const d = lastDevices.find(x => x.serial === serial);
       if (d) {
         d.target_humidity = target;
-        d.target_humidity_enabled = true;
         renderDevices(lastDevices);
       }
     }
