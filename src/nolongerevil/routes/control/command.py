@@ -107,7 +107,7 @@ async def set_mode(
     Args:
         state_service: Device state service
         serial: Device serial
-        value: Mode ("off", "heat", "cool", "heat-cool", "emergency")
+        value: Mode ("off", "heat", "cool", "heat-cool", "heat_cool", "emergency")
 
     Returns:
         Updated values
@@ -132,7 +132,7 @@ async def set_mode(
         target_mode = API_MODE_TO_NEST.get(api_mode, mode_str)
     except ValueError:
         raise CommandError(
-            f"Unknown mode '{value}'. Valid modes: off, heat, cool, heat-cool, range, auto, emergency"
+            f"Unknown mode '{value}'. Valid modes: off, heat, cool, heat-cool, heat_cool, range, auto, emergency"
         )
 
     # Validate device capabilities
