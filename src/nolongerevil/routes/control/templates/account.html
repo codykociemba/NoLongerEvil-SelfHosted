@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account · No Longer Evil</title>
+  <link rel="icon" type="image/png" href="/nle-favicon.png">
+  <style>
+    :root { --accent:#0EA5E9; --accent-hover:#0284C7; --accent-text:#fff; --bg:#f8fafc; --card:#fff; --text:#0f172a; --text2:#475569; --border:#e2e8f0; --error:#dc2626; }
+    @media (prefers-color-scheme: dark) {
+      :root { --accent:#38BDF8; --accent-hover:#0EA5E9; --accent-text:#0f172a; --bg:#0f172a; --card:#1e293b; --text:#f1f5f9; --text2:#94a3b8; --border:#334155; --error:#f87171; }
+    }
+    * { box-sizing: border-box; margin: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); max-width: 720px; margin: 0 auto; padding: 24px 16px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    h1 { font-size: 22px; }
+    a { color: var(--accent); }
+    section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px; }
+    h2 { font-size: 15px; }
+    p, .muted { font-size: 13px; color: var(--text2); line-height: 1.5; }
+    ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+    li { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; padding: 8px 0; border-top: 1px solid var(--border); }
+    li:first-child { border-top: none; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); flex: 1; min-width: 160px; }
+    button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: none; color: var(--text); cursor: pointer; white-space: nowrap; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+    code { font-size: 13px; word-break: break-all; background: var(--bg); padding: 8px; border-radius: 6px; display: block; }
+    #qr svg { background: #fff; border-radius: 8px; }
+    .msg { font-size: 13px; min-height: 1em; }
+    .error { color: var(--error); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Account</h1>
+    <div class="row"><a href="/">Dashboard</a><button id="signOut">Sign out</button></div>
+  </header>
+
+  <section>
+    <h2>Signed-in devices</h2>
+    <ul id="sessions"></ul>
+    <div class="row"><button id="signOutOthers">Sign out all other devices</button></div>
+  </section>
+
+  <section>
+    <h2>Add a device</h2>
+    <p>Scan this code with a phone or tablet on your network to sign it in without typing the password. The code works once, for 10 minutes.</p>
+    <div class="row"><button class="primary" id="addDevice">Show code</button></div>
+    <div id="qr"></div>
+  </section>
+
+  <section>
+    <h2>Change password</h2>
+    <form id="passwordForm" class="row">
+      <input type="password" id="current" placeholder="Current password" autocomplete="current-password" required>
+      <input type="password" id="new" placeholder="New password (8+ characters)" autocomplete="new-password" minlength="8" required>
+      <button class="primary">Change</button>
+    </form>
+    <div class="msg" id="passwordMsg"></div>
+  </section>
+
+  <section>
+    <h2>API keys</h2>
+    <p>For scripts and automations: send the key as <code style="display:inline;padding:2px 4px">Authorization: Bearer &lt;key&gt;</code>.</p>
+    <ul id="keys"></ul>
+    <form id="keyForm" class="row">
+      <input id="keyName" placeholder="Key name, e.g. Home Assistant" maxlength="60">
+      <button class="primary">Create key</button>
+    </form>
+    <div id="newKey"></div>
+  </section>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const api = async (path, options = {}) => {
+      const r = await fetch(path, {headers: {'Content-Type': 'application/json'}, ...options});
+      if (r.status === 401) { location.href = '/login'; throw new Error('signed out'); }
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    };
+    const when = ms => new Date(ms).toLocaleString();
+    function item(text, detail, buttonLabel, onClick) {
+      const li = document.createElement('li');
+      const info = document.createElement('div');
+      info.textContent = text;
+      const sub = document.createElement('div');
+      sub.className = 'muted';
+      sub.textContent = detail;
+      info.append(sub);
+      li.append(info);
+      if (buttonLabel) {
+        const b = document.createElement('button');
+        b.textContent = buttonLabel;
+        b.onclick = onClick;
+        li.append(b);
+      }
+      return li;
+    }
+
+    async function loadSessions() {
+      const list = $('sessions');
+      list.replaceChildren(...(await api('/api/auth/sessions')).map(s =>
+        item(s.name + (s.current ? ' (this device)' : ''),
+             'Last seen ' + when(s.last_seen_at) + (s.remember ? '' : ' · until the browser closes'),
+             s.current ? null : 'Sign out',
+             async () => { await api('/api/auth/sessions/' + s.id, {method: 'DELETE'}); loadSessions(); })));
+    }
+
+    async function loadKeys() {
+      const keys = await api('/api/auth/api-keys');
+      $('keys').replaceChildren(...keys.map(k =>
+        item(k.name + ' · ' + k.preview,
+             'Created ' + new Date(k.created_at).toLocaleDateString() + (k.last_used_at ? ' · last used ' + new Date(k.last_used_at).toLocaleString() : ' · never used'),
+             'Delete',
+             async () => { if (confirm('Delete key "' + k.name + '"? Anything using it stops working.')) { await api('/api/auth/api-keys/' + k.id, {method: 'DELETE'}); loadKeys(); } })));
+    }
+
+    $('signOut').onclick = async () => { await api('/logout', {method: 'POST'}); location.href = '/login'; };
+    $('signOutOthers').onclick = async () => { await api('/api/auth/sessions/sign-out-others', {method: 'POST'}); loadSessions(); };
+    $('addDevice').onclick = async () => {
+      const {url, svg} = await api('/api/auth/device-link', {method: 'POST'});
+      $('qr').innerHTML = svg;  // generated by the server from its own URL
+      const link = document.createElement('p');
+      link.className = 'muted';
+      link.textContent = url;
+      $('qr').append(link);
+    };
+    $('passwordForm').onsubmit = async e => {
+      e.preventDefault();
+      const msg = $('passwordMsg');
+      try {
+        await api('/api/auth/password', {method: 'POST', body: JSON.stringify({current: $('current').value, new: $('new').value})});
+        msg.className = 'msg'; msg.textContent = 'Password changed.';
+        e.target.reset();
+      } catch (err) { msg.className = 'msg error'; msg.textContent = err.message; }
+    };
+    $('keyForm').onsubmit = async e => {
+      e.preventDefault();
+      const {key} = await api('/api/auth/api-keys', {method: 'POST', body: JSON.stringify({name: $('keyName').value})});
+      const p = document.createElement('p');
+      p.textContent = 'Copy this key now; it is not shown again:';
+      const c = document.createElement('code');
+      c.textContent = key;
+      $('newKey').replaceChildren(p, c);
+      e.target.reset();
+      loadKeys();
+    };
+
+    loadSessions();
+    loadKeys();
+  </script>
+</body>
+</html>

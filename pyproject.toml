@@ -35,6 +35,7 @@ dependencies = [
     "sqlmodel>=0.0.14",
     "sqlalchemy[asyncio]>=2.0.23",
     "alembic>=1.13.0",
+    "segno>=1.6.0",
 ]
 
 [project.optional-dependencies]

@@ -132,6 +132,20 @@ To enable MQTT integration for Home Assistant:
 | `MQTT_TOPIC_PREFIX` | `nolongerevil` | Prefix for MQTT topics |
 | `MQTT_DISCOVERY_PREFIX` | `homeassistant` | Home Assistant discovery prefix |
 
+### Control Panel Login (Optional)
+
+Set `CONTROL_AUTH=true` to require a password for the control panel and control API. The device API is not affected.
+
+On first start the server logs a one-time setup link and QR code (`docker compose logs`). Open it, or scan it with your phone, to choose the password. Afterwards, sign in from any browser; "Remember this device" keeps it signed in for a year. The Account page lists signed-in devices, shows a QR code to sign in another device, and creates API keys for scripts (`Authorization: Bearer <key>`).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CONTROL_AUTH` | `false` | Require a login for the control panel and control API |
+| `CONTROL_PASSWORD` | - | Set the password at startup instead of using the setup link; also resets a forgotten one |
+| `CONTROL_TRUSTED_INGRESS_IP` | `172.30.32.2` | Home Assistant ingress proxy; inside the add-on its requests skip the login |
+
+Without HTTPS the password is sent unencrypted when you sign in, so use it on a trusted network or behind an HTTPS reverse proxy.
+
 ## API Reference
 
 ### Device API (Server Port)

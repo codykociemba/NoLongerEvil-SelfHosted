@@ -4,6 +4,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+from nolongerevil.config import settings
 from nolongerevil.lib.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,7 +26,8 @@ async def handle_webui(request: web.Request) -> web.Response:
     html = INDEX_TEMPLATE.read_text()
 
     # Inject the ingress path via data attribute on body tag
-    html = html.replace("<body>", f'<body data-ingress-path="{ingress_path}">')
+    login = "1" if settings.control_auth and not ingress_path else ""
+    html = html.replace("<body>", f'<body data-ingress-path="{ingress_path}" data-login="{login}">')
 
     return web.Response(text=html, content_type="text/html")
 
