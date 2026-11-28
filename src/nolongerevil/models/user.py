@@ -39,3 +39,16 @@ class DeviceOwnerModel(SQLModel, table=True):
     createdAt: int  # Millisecond timestamp
 
     __table_args__ = (Index("idx_deviceOwners_userId", "userId"),)
+
+
+class OpenModeOwnerModel(SQLModel, table=True):
+    """Marks a deviceOwners row that open mode created automatically.
+
+    These rows are removed at startup when device pairing is required, so a
+    device that was never paired does not count as paired.
+    """
+
+    __tablename__ = "openModeOwners"
+
+    serial: str = Field(primary_key=True)
+    createdAt: int  # Millisecond timestamp

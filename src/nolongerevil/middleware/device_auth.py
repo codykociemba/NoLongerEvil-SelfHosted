@@ -21,7 +21,7 @@ from nolongerevil.lib.serial_parser import (
     extract_serial_from_basic_auth,
     extract_serial_from_request,
 )
-from nolongerevil.services.sqlmodel_service import SQLModelService
+from nolongerevil.utils.open_mode_ownership import assign_open_mode_owner
 
 logger = get_logger(__name__)
 
@@ -77,8 +77,15 @@ def create_device_auth_middleware() -> Callable[
             if _serial_from_auth and _password:
                 _device_api_keys[_serial_from_auth] = _password
 
-        # Open mode: skip all auth checks, treat every device as paired
+        # Open mode: treat every device as paired. A real thermostat that
+        # talks to transport/upload is assigned to the built-in Home Assistant
+        # user so downstream device ownership lookups work.
         if not settings.require_device_pairing:
+            serial = extract_serial_from_request(request)
+            storage = request.app.get("storage")
+            if serial and storage:
+                await assign_open_mode_owner(request, storage, request.app.get("state_service"))
+                request["device_serial"] = serial
             request["device_auth_tier"] = TIER_PAIRED
             return await handler(request)
 
@@ -100,7 +107,7 @@ def create_device_auth_middleware() -> Callable[
         request["device_serial"] = serial
 
         # Determine auth tier
-        storage: SQLModelService | None = request.app.get("storage")
+        storage = request.app.get("storage")
         if not storage:
             # No storage available — can't enforce auth, pass through
             logger.warning("Storage not available — skipping device auth")
