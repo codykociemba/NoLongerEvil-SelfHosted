@@ -174,8 +174,18 @@ class TestMessageRouting:
         integration._handle_raw_command.assert_awaited_once()
         integration._handle_ha_command.assert_not_awaited()
 
-    async def test_ha_topic_ignored_when_ha_discovery_disabled(self) -> None:
+    async def test_ha_topic_handled_when_only_raw_enabled(self) -> None:
         integration = self.integration(homeAssistantDiscovery=False)
+
+        await integration._handle_message(
+            AsyncMock(), self.message(f"nolongerevil/{SERIAL}/ha/target_temperature/set")
+        )
+
+        integration._handle_ha_command.assert_awaited_once()
+        integration._handle_raw_command.assert_not_awaited()
+
+    async def test_ha_topic_ignored_when_ha_and_raw_disabled(self) -> None:
+        integration = self.integration(homeAssistantDiscovery=False, publishRaw=False)
 
         await integration._handle_message(
             AsyncMock(), self.message(f"nolongerevil/{SERIAL}/ha/target_temperature/set")

@@ -227,9 +227,10 @@ class MqttIntegration(BaseIntegration):
         if not topic.endswith("/set"):
             return
 
-        # Handle HA command topics
+        # Handle HA command topics. They arrive through the raw filter too, so
+        # keep handling them when only publishRaw is on, as before.
         if "/ha/" in topic:
-            if self._ha_discovery:
+            if self._ha_discovery or self._publish_raw:
                 await self._handle_ha_command(topic, payload)
             return
 
