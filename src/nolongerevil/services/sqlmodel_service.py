@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlmodel import SQLModel, select
+from sqlmodel import SQLModel, col, select
 
 from nolongerevil.config import settings
 from nolongerevil.lib.logger import get_logger
@@ -40,6 +40,7 @@ from nolongerevil.models import (
     EntryKeyModel,
     IntegrationConfigModel,
     LogModel,
+    OpenModeOwnerModel,
     SessionModel,
     UserInfoModel,
     WeatherDataModel,
@@ -335,6 +336,12 @@ class SQLModelService(AbstractDeviceStateManager):
                 model = device_owner_to_model(owner)
                 session.add(model)
 
+            marker = await session.get(OpenModeOwnerModel, owner.serial)
+            if owner.open_mode and not marker:
+                session.add(OpenModeOwnerModel(serial=owner.serial, createdAt=now_ms()))
+            elif not owner.open_mode and marker:
+                await session.delete(marker)
+
             await session.commit()
 
     async def get_device_owner(self, serial: str) -> DeviceOwner | None:
@@ -344,7 +351,30 @@ class SQLModelService(AbstractDeviceStateManager):
                 select(DeviceOwnerModel).where(DeviceOwnerModel.serial == serial)
             )
             model = result.scalar_one_or_none()
-            return model_to_device_owner(model) if model else None
+            if not model:
+                return None
+            owner = model_to_device_owner(model)
+            owner.open_mode = await session.get(OpenModeOwnerModel, serial) is not None
+            return owner
+
+    async def remove_open_mode_owners(self) -> list[str]:
+        """Delete every ownership record that open mode created automatically.
+
+        Returns:
+            Serials whose ownership record was removed
+        """
+        async with self._session_maker() as session:
+            result = await session.execute(select(OpenModeOwnerModel))
+            serials = [m.serial for m in result.scalars().all()]
+            if serials:
+                await session.execute(
+                    delete(DeviceOwnerModel).where(col(DeviceOwnerModel.serial).in_(serials))
+                )
+                await session.execute(
+                    delete(OpenModeOwnerModel).where(col(OpenModeOwnerModel.serial).in_(serials))
+                )
+            await session.commit()
+            return serials
 
     async def get_user_devices(self, user_id: str) -> list[str]:
         """Get all device serials owned by a user."""
@@ -371,6 +401,10 @@ class SQLModelService(AbstractDeviceStateManager):
                     DeviceOwnerModel.userId == user_id,
                 )
             )
+            if result.rowcount > 0:
+                await session.execute(
+                    delete(OpenModeOwnerModel).where(OpenModeOwnerModel.serial == serial)
+                )
             await session.commit()
             return result.rowcount > 0
 

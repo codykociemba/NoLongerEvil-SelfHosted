@@ -259,6 +259,16 @@ async def run_server() -> None:
     await ensure_homeassistant_user(storage)
     await initialize_mqtt_config(storage)
 
+    # Owners that open mode assigned automatically must not count as paired
+    # once pairing is required.
+    if settings.require_device_pairing:
+        released = await storage.remove_open_mode_owners()
+        if released:
+            logger.info(
+                f"Device pairing is required: removed {len(released)} open-mode "
+                f"owner record(s): {', '.join(released)}"
+            )
+
     # Initialize services
     state_service = DeviceStateService(storage)
     await state_service.initialize()

@@ -58,6 +58,7 @@ class DeviceOwner:
     serial: str
     user_id: str
     created_at: datetime
+    open_mode: bool = False  # Assigned automatically in open mode, not paired
 
 
 @dataclass

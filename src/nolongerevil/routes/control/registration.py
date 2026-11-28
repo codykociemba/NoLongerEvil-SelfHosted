@@ -98,7 +98,7 @@ async def handle_register(request: web.Request) -> web.Response:
 
     # Register device to user (create ownership record)
     existing_owner = await storage.get_device_owner(serial)
-    if existing_owner:
+    if existing_owner and not existing_owner.open_mode:
         logger.warning(f"Device {serial} already registered to {existing_owner.user_id}")
     else:
         owner = DeviceOwner(

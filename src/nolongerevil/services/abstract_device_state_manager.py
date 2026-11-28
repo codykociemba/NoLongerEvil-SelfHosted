@@ -121,6 +121,11 @@ class AbstractDeviceStateManager(ABC):
         pass
 
     @abstractmethod
+    async def remove_open_mode_owners(self) -> list[str]:
+        """Delete ownership records that open mode created automatically."""
+        pass
+
+    @abstractmethod
     async def get_user_devices(self, user_id: str) -> list[str]:
         """Get all device serials owned by a user."""
         pass
