@@ -40,6 +40,7 @@ from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.types import DeviceObject
 from nolongerevil.services.device_state_service import DeviceStateService
 from nolongerevil.services.subscription_manager import SubscriptionManager
+from nolongerevil.utils.fan_timer import record_server_fan_timer
 from nolongerevil.utils.structure_assignment import derive_structure_id
 from nolongerevil.utils.temperature_safety import (
     get_safety_bounds,
@@ -559,6 +560,9 @@ async def execute_command(
             revision=new_revision,
             timestamp=int(time.time() * 1000),
         )
+
+    if object_key == f"device.{serial}":
+        record_server_fan_timer(serial, values)
 
     # Notify subscribers
     await subscription_manager.notify_all_subscribers(serial, [updated_obj])
