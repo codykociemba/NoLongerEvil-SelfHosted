@@ -8,6 +8,64 @@ from nolongerevil.lib.types import FanTimerState
 
 logger = get_logger(__name__)
 
+# How long after the server itself sets a fan timer a thermostat report of
+# timeout=0/control=false is treated as a stale echo rather than a manual
+# fan-off on the device.
+SERVER_FAN_TIMER_ECHO_WINDOW_SECONDS = 60
+
+# serial -> (fan_timer_timeout the server set, monotonic time it was set)
+_server_fan_timers: dict[str, tuple[int, float]] = {}
+
+
+def record_server_fan_timer(serial: str, values: dict[str, Any]) -> None:
+    """Remember a fan timer that the server itself just wrote for a device.
+
+    Args:
+        serial: Device serial
+        values: Values the server wrote to the device bucket
+    """
+    if "fan_timer_timeout" not in values:
+        return
+    try:
+        timeout = int(values["fan_timer_timeout"])
+    except (TypeError, ValueError, OverflowError):
+        _server_fan_timers.pop(serial, None)
+        return
+    if timeout > int(time.time()):
+        _server_fan_timers[serial] = (timeout, time.monotonic())
+    else:
+        _server_fan_timers.pop(serial, None)
+
+
+def _in_server_echo_window(serial: str | None, timeout: int | None) -> bool:
+    """Check if the active timer was set by the server within the echo window."""
+    if serial is None or timeout is None:
+        return False
+    entry = _server_fan_timers.get(serial)
+    if entry is None:
+        return False
+    set_timeout, set_at = entry
+    if set_timeout != timeout:
+        return False
+    return time.monotonic() - set_at <= SERVER_FAN_TIMER_ECHO_WINDOW_SECONDS
+
+
+def is_explicitly_turning_off_fan(new_values: dict[str, Any]) -> bool:
+    """Check if values explicitly turn off the fan.
+
+    Args:
+        new_values: Incoming device values
+
+    Returns:
+        True if explicitly disabling fan
+    """
+    # Check fan_timer_timeout = 0
+    if "fan_timer_timeout" in new_values and new_values["fan_timer_timeout"] == 0:
+        return True
+
+    # Check fan_control_state = false
+    return "fan_control_state" in new_values and new_values["fan_control_state"] is False
+
 
 def get_fan_timer_state(values: dict[str, Any]) -> FanTimerState:
     """Extract fan timer state from device values.
@@ -96,16 +154,32 @@ def preserve_fan_timer_state(
         # No active timer, nothing to preserve
         return result
 
+    in_echo_window = _in_server_echo_window(serial, current_state.timeout)
+
+    # Outside the short window after a server-set timer, a fan-off report is
+    # a real change on the thermostat (for example the fan turned off there).
+    if not in_echo_window and is_explicitly_turning_off_fan(new_values):
+        logger.debug("Fan timer explicitly disabled" + (f" for device {serial}" if serial else ""))
+        return result
+
     # This function is called only while merging thermostat-originated state.
-    # A device may echo its stale pre-command fan fields before it applies the
-    # server push. Preserve the authoritative active hold when that echo says
-    # timeout=0/control=false. Explicit API/MQTT fan-off commands update server
-    # state through execute_command() and do not pass here. A positive timeout
-    # from the device is real progress and remains authoritative.
+    # Right after the server sets a timer, a device may echo its stale
+    # pre-command fan fields before it applies the server push. Within that
+    # window, preserve the active hold when the echo says timeout=0/control=false.
+    # Explicit API/MQTT fan-off commands update server state through
+    # execute_command() and do not pass here. A positive timeout from the
+    # device is real progress and remains authoritative.
     fan_fields = extract_fan_timer_fields(existing_values)
     for key, value in fan_fields.items():
         if key not in new_values:
             result[key] = value
+
+    if not in_echo_window:
+        logger.debug(
+            f"Preserving active fan timer (timeout={current_state.timeout})"
+            + (f" for device {serial}" if serial else "")
+        )
+        return result
 
     incoming_timeout = new_values.get("fan_timer_timeout")
     if isinstance(incoming_timeout, (int, float, str)):

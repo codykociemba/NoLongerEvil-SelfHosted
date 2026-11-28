@@ -64,6 +64,7 @@ from nolongerevil.lib.consts import HaPreset
 from nolongerevil.lib.logger import get_logger
 from nolongerevil.lib.types import DeviceStateChange, IntegrationConfig
 from nolongerevil.routes.control.command import CommandError, execute_command
+from nolongerevil.utils.fan_timer import record_server_fan_timer
 
 if TYPE_CHECKING:
     from nolongerevil.services.device_state_service import DeviceStateService
@@ -417,6 +418,8 @@ class MqttIntegration(BaseIntegration):
             updated_at=datetime.now(),
         )
         await self._state_service.upsert_object(obj)
+        if object_key == f"device.{serial}":
+            record_server_fan_timer(serial, values)
         logger.info(f"Applied raw command to {serial}: {values}")
 
         # Push to subscribed device immediately
@@ -445,6 +448,7 @@ class MqttIntegration(BaseIntegration):
             updated_at=datetime.now(),
         )
         await self._state_service.upsert_object(obj)
+        record_server_fan_timer(serial, {field: value})
         logger.info(f"Applied MQTT command to {serial}: {{{field}: {value}}}")
 
         # Push to subscribed device immediately
