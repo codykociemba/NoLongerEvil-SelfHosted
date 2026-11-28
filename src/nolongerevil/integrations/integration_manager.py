@@ -10,6 +10,7 @@ from nolongerevil.lib.types import DeviceStateChange, IntegrationConfig
 if TYPE_CHECKING:
     from nolongerevil.integrations.base_integration import BaseIntegration
     from nolongerevil.services.abstract_device_state_manager import AbstractDeviceStateManager
+    from nolongerevil.services.device_availability import DeviceAvailability
     from nolongerevil.services.device_state_service import DeviceStateService
     from nolongerevil.services.subscription_manager import SubscriptionManager
 
@@ -33,6 +34,7 @@ class IntegrationManager:
         storage: "AbstractDeviceStateManager",
         state_service: "DeviceStateService",
         subscription_manager: "SubscriptionManager | None" = None,
+        device_availability: "DeviceAvailability | None" = None,
     ) -> None:
         """Initialize the integration manager.
 
@@ -40,10 +42,13 @@ class IntegrationManager:
             storage: Storage backend for configuration
             state_service: Device state service for state access
             subscription_manager: Subscription manager for pushing updates to devices
+            device_availability: Device availability tracker, so integrations
+                can report real connectivity when they (re)connect
         """
         self._storage = storage
         self._state_service = state_service
         self._subscription_manager = subscription_manager
+        self._device_availability = device_availability
         self._integrations: dict[str, BaseIntegration] = {}  # user_id:type -> integration
         self._poll_task: asyncio.Task[None] | None = None
         self._running = False
@@ -118,7 +123,14 @@ class IntegrationManager:
         if config.type == "mqtt":
             from nolongerevil.integrations.mqtt import MqttIntegration
 
-            return MqttIntegration(config, self._state_service, self._subscription_manager)
+            return MqttIntegration(
+                config,
+                self._state_service,
+                self._subscription_manager,
+                availability_checker=(
+                    self._device_availability.is_available if self._device_availability else None
+                ),
+            )
 
         logger.warning(f"Unknown integration type: {config.type}")
         return None

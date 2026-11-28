@@ -275,7 +275,9 @@ async def run_server() -> None:
     device_availability.initialize_from_serials(known_serials)
 
     # Initialize integration manager
-    integration_manager = IntegrationManager(storage, state_service, subscription_manager)
+    integration_manager = IntegrationManager(
+        storage, state_service, subscription_manager, device_availability
+    )
     state_service.set_integration_manager(integration_manager)
     device_availability.set_integration_manager(integration_manager)
 
